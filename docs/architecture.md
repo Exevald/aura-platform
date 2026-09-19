@@ -26,9 +26,14 @@ flowchart TB
 
     subgraph Platform[Platform]
         Gateway[gateway]
-        Identity[identity]
+        BFF[bff]
+        Auth[auth]
+        Session[session]
+        User[user]
+        Workspace[workspace]
         Access[access]
-        Account[account]
+        AppReg[appreg]
+        Realtime[realtime]
         Notification[notification]
         Filestorage[filestorage]
         Mailer[mailer]
@@ -43,26 +48,34 @@ flowchart TB
 
     Frontend --> Gateway
     ExternalClient --> Gateway
-    Gateway -.->|proxy| Identity
-    Gateway -.->|proxy| Access
-    Gateway -.->|proxy| Account
-    Gateway -.->|proxy| Notification
+    Gateway -.->|proxy| BFF
+    Gateway -.->|proxy| Auth
     Gateway -.->|proxy| Calendar
     Gateway -.->|proxy| Editor
     Gateway -.->|proxy| Planner
-    Access --> Account
-    Identity --> Account
-    Mailer --> Identity
-    Editor --> Account
-    Editor --> Filestorage
+    Auth --> User
+    Auth --> Session
+    BFF --> User
+    BFF --> AppReg
+    BFF --> Calendar
+    BFF --> Editor
+    BFF --> Planner
+    Access --> Workspace
     Editor --> Access
-    Editor .-> Auditor
-    Calendar --> Identity
+    Realtime --> Session
+    Realtime --> Access
+    Editor -.-> Realtime
+    Calendar -.-> Realtime
+    Planner -.-> Realtime
+    Notification -.-> Realtime
+    User --> Workspace
+    Editor --> Workspace
+    Editor --> Filestorage
+    Calendar --> User
     Calendar -.-> Notification
     Calendar -.-> Mailer
-    Calendar -.-> Auditor
-    Planner -.-> Calendar
-    Planner -.-> Auditor
+    Planner --> Calendar
+    Planner -.-> Notification
 ```
 
 ### 3. Описание компонентов
@@ -98,7 +111,7 @@ flowchart TB
 
 ---
 
-#### `identity`
+#### `user`
 
 **Ответственность**
 
@@ -118,7 +131,7 @@ flowchart TB
 
 **Зависимости**
 
-* `account`
+* нет
 
 **Потребители**
 
@@ -129,36 +142,66 @@ flowchart TB
 
 ---
 
-#### `account`
+#### `auth`
 
 **Ответственность**
 
-* хранение данных корпоративного аккаунта пользователей
-* управление данными аккаунта
-* управление пользователями в аккаунте
-* управление доступами в аккаунте
+* аутентификация пользователя
+* проверка кредов
+* запись кредов
+* связывание способа аутентификации с `user`
+* запуск создания пользовательской сессии после успешного входа
 
 **Не ответственность**
 
-* управление сессиями
-* продуктовые данные
+* хранить профиль пользователя
+* хранить корпоративные данные
+* хранить бизнес-права
+* принимать решения о доступе к документам/календарям
+* владеть пользовательской сессией после её создания
 
 **Данные**
 
-* аккаунт пользователя
-* общие корпоративние данные данные
+* креды пользователя
+* способы аутенфикации
 
 **Зависимости**
 
-* нет
+* `user`
+* `session`
 
 **Потребители**
 
-* `identity`
+* `bff`
 * `gateway`
-* `editor`
-* `access`
-* и другие продуктовые модули
+
+---
+
+#### `session`
+
+**Ответственность**
+
+* жизненный цикл сессии
+
+**Не ответственность**
+
+* хранить креды
+* проверять креды
+* проверять права доступа
+
+**Данные**
+
+* данные сессии (чья, какой статус, когда закончится)
+
+**Зависимости**
+
+* `auth`
+
+**Потребители**
+
+* `auth`
+* `bff`
+* `realtime`
 
 ---
 
@@ -190,6 +233,88 @@ flowchart TB
 * `gateway`
 * `editor`
 * и другие продуктовые модули
+
+---
+
+#### `bff`
+
+**Ответственность**
+
+* сбор фронтовых данных с запросов
+* хранение специфичных для фронта данных
+
+**Не ответственность**
+
+* хранение продуктовых данных
+* не проксирует каждый запрос
+* не авторизует запросы
+
+**Данные**
+
+* нет
+
+**Зависимости**
+
+* нет
+
+**Потребители**
+
+* фронт
+
+---
+
+#### `realtime`
+
+**Ответственность**
+
+* хранение и управление долгоживущих соединений (вебсокет)
+* доставка realtime-событий подключённым клиентам
+
+**Не ответственность**
+
+* хранение продуктовых данных
+* не проксирует каждый запрос
+* не авторизует запросы
+
+**Данные**
+
+* соединение клиента с сервером
+* realtime-события
+
+**Зависимости**
+
+* `session`
+* `access`
+
+**Потребители**
+
+* продуктовые сервисы, поддерживающие realtime-события
+
+---
+
+#### `appreg`
+
+**Ответственность**
+
+* реестр приложений, поддерживаемых на платформе
+* данные о роутинге этих приложений
+
+**Не ответственность**
+
+* бизнес-логика этих приложений
+
+**Данные**
+
+* yaml-файлик с описанием каждого сервиса
+
+**Зависимости**
+
+* нет
+
+**Потребители**
+
+* `gateway`
+* `bff`
 
 ---
 
@@ -401,139 +526,109 @@ flowchart TB
 
 ### 4. Карта владения данными
 
-| Данные                         | Владелец       | Кто использует                  |
-|--------------------------------|----------------|---------------------------------|
-| Данные профиля пользователя    | `identity`     | `identity`                      |
-| Сессия                         | `gateway`      | Все компоненты платформы        |
-| Данные аккаунта                | `account`      | `identity`, `gateway`, `editor` |
-| Доступы пользователя           | `access`       | `access`, `editor               |
-| Уведомления                    | `notification` | `notification`, `calendar`      |
-| Данные почтовика               | `mailer`       | `mailer`, `calendar`            |
-| Файлы                          | `filestorage`  | `filestorage`, `editor`         |
-| События продукта               | `auditor`      | `auditor`                       |
-| События календаря              | `calendar`     | `calendar`, `planner`           |
-| Данные календаря (чей он и тд) | `calendar`     | `calendar`                      |
-| Документы/Заметки              | `editor`       | `editor`                        |
-| Данные запланированных событий | `planner`      | `planner`                       |
+| Данные                          | Владелец       | Кто использует                 |
+|---------------------------------|----------------|--------------------------------|
+| Данные профиля пользователя     | `user`         | `user`                         |
+| Сессия                          | `session`      | Все компоненты платформы       |
+| Данные авторизации пользователя | `auth`         | `gateway`                      |
+| Доступы пользователя к модулям  | `access`       | `gateway`                      |
+| Уведомления                     | `notification` | `notification`, `calendar`     |
+| Данные почтовика                | `mailer`       | `mailer`, `calendar`           |
+| Файлы                           | `filestorage`  | `filestorage`, `editor`        |
+| События продукта                | `auditor`      | `auditor`                      |
+| События календаря               | `calendar`     | `calendar`, `planner`          |
+| Данные календаря (чей он и тд)  | `calendar`     | `calendar`                     |
+| Документы/Заметки               | `editor`       | `editor`                       |
+| Данные запланированных событий  | `planner`      | `planner`                      |
+| Реестр модулей                  | `appreg`       | `gateway`, `bff`               |
+| Realtime-соединения             | `realtime`     | `фронт`, `продуктовые сервисы` |
 
 ### 5. Основные пользовательские сценарии
 
-#### 5.1. Регистрация пользователя
+#### Регистрация пользователя
 
 ```mermaid
 sequenceDiagram
-    actor User as Пользователь
+    actor Client as Пользователь
     participant Frontend
     participant Gateway as gateway
-    participant Identity as identity
-    participant Account as account
-    User ->> Frontend: Регистрационные данные
+    participant User as user
+    Client ->> Frontend: Register
     Frontend ->> Gateway: Register
-    Gateway ->> Identity: Register
-    Identity ->> Account: Создать аккаунт
-    Account -->> Identity: Account
-    Identity ->> Identity: Создать учётные данные
-    Identity -->> Gateway: Пользователь зарегистрирован
-    Gateway -->> Frontend: Результат
-    Frontend -->> User: Регистрация завершена
+    Gateway ->> User: Register
+    User ->> User: Создать учётные данные
+    User ->> Session: CreateSession
+    Session -->> User: SessionData
+    User -->> Gateway: OK
+    Gateway -->> Frontend: OK
+    Frontend -->> Client: OK
 ```
 
 ---
 
-#### 5.2. Вход пользователя
+#### Вход пользователя
 
 ```mermaid
 sequenceDiagram
     actor User as Пользователь
     participant Frontend
     participant Gateway as gateway
-    participant Identity as identity
-    User ->> Frontend: Логин и пароль
+    participant Auth as auth
+    participant UserService as user
+    participant Session as session
+    User ->> Frontend: Login
     Frontend ->> Gateway: Login
-    Gateway ->> Identity: Authenticate
-    Identity ->> Identity: Проверить учётные данные
-    Identity -->> Gateway: ОК
-    Gateway ->> Gateway: Создать сессию
-    Gateway -->> Frontend: Пользователь аутентифицирован
-    Frontend -->> User: Вход выполнен
+    Gateway ->> Auth: proxy
+    Auth ->> UserService: GetUser
+    UserService -->> Auth: UserData
+    Auth ->> Auth: Проверка кредов
+    Auth ->> Session: CreateSession
+    Session -->> Auth: SessionData
+    Auth -->> Gateway: OK
+    Gateway -->> Frontend: OK
 ```
 
 ---
 
-#### 5.3. Получение данных корпоративного аккаунта
+#### Работа с документом в Editor
 
 ```mermaid
 sequenceDiagram
     actor User as Пользователь
     participant Frontend
     participant Gateway as gateway
-    participant Account as account
-    User ->> Frontend: Открыть профиль
-    Frontend ->> Gateway: Получить данные корпоративного аккаунта
-    Gateway ->> Account: GetAccount
-    Account -->> Gateway: Account
-    Gateway -->> Frontend: Account
-    Frontend -->> User: Показать данные
-```
-
----
-
-#### 5.4. Работа с документом в Editor
-
-```mermaid
-sequenceDiagram
-    actor User as Пользователь
-    participant Frontend
-    participant Gateway as gateway
-    participant Editor as editor
+    participant Session as session
     participant Access as access
+    participant Editor as editor
     participant Storage as filestorage
     participant Auditor as auditor
     User ->> Frontend: Изменить документ
     Frontend ->> Gateway: UpdateDocument
-    Gateway ->> Editor: UpdateDocument
-    Editor ->> Access: CheckAccess
-    Access -->> Editor: Allow / Deny
+    Gateway ->> Session: CheckSession
+    Session -->> Session: GetSession
+    Session -->> Gateway: SessionAvailable
+    Gateway ->> Access: CheckModuleAvailable
+    Access -->> Gateway: Access
 
-    alt Доступ разрешён
-        Editor ->> Storage: Работа с файлом
-        Storage -->> Editor: Результат
-        Editor -->> Auditor: Зафиксировать действие
-        Editor -->> Frontend: OK
+    alt Доступ есть
+        Gateway ->> Editor: UpdateDocument
+        Editor -->> Editor: CheckEditorAccess
+        alt Доступ есть
+            Editor ->> Storage: Работа с файлом
+            Storage -->> Editor: Результат
+            Editor -->> Auditor: Зафиксировать действие
+            Editor -->> Frontend: OK
+        else Доступа нет
+            Editor -->> Frontend: Access denied
+        end
     else Доступ запрещён
-        Editor -->> Frontend: Access denied
+        Gateway -->> Frontend: Access denied
     end
 ```
 
 ---
 
-#### 5.5. Работа с Calendar
-
-```mermaid
-sequenceDiagram
-    actor User as Пользователь
-    participant Frontend
-    participant Gateway as gateway
-    participant Calendar as calendar
-    participant Identity as identity
-    participant Notification as notification
-    participant Mailer as mailer
-    participant Auditor as auditor
-    User ->> Frontend: Создать событие
-    Frontend ->> Gateway: CreateEvent
-    Gateway ->> Calendar: CreateEvent
-    Calendar ->> Identity: GetUserData
-    Identity -->> Calendar: UserData
-    Calendar ->> Calendar: CreateCalendarEvent
-    Calendar -->> Notification: PushNotification
-    Calendar -->> Mailer: SendMail
-    Calendar -->> Auditor: AuditEvent
-    Calendar -->> Frontend: Событие создано
-```
-
----
-
-#### 5.6. Работа Planner с Calendar
+#### Работа Planner с Calendar
 
 ```mermaid
 sequenceDiagram
