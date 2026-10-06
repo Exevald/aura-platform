@@ -1,0 +1,33 @@
+services:
+  auditor-service:
+    image: distributed-programming-auditor:local
+    build:
+      context: ./modules/auditor
+      dockerfile: Dockerfile
+    environment:
+      AUDITOR_MYSQL_ADDRESS: mysql:3306
+      AUDITOR_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${AUDITOR_GRPC_PORT:-8081}:8081"
+      - "${AUDITOR_HTTP_PORT:-8082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  auditor-message-handler:
+    image: distributed-programming-auditor:local
+    command: [message-handler]
+    environment:
+      AUDITOR_MYSQL_ADDRESS: mysql:3306
+      AUDITOR_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${AUDITOR_MESSAGE_HANDLER_PORT:-8083}:8082"
+    depends_on:
+      auditor-service:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy

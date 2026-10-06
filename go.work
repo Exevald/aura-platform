@@ -1,0 +1,10 @@
+go 1.27.1
+
+use (
+	./modules/auditor
+	./modules/auth
+	./modules/gateway
+	./modules/session
+	./modules/user
+	lib
+)

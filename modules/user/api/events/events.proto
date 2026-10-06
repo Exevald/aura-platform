@@ -1,0 +1,9 @@
+syntax = "proto3";
+package userEvents;
+
+option go_package = "/.;userevents";
+
+message Echo {
+  string ID = 1;
+  string Body = 2;
+}
