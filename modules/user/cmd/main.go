@@ -9,8 +9,6 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/urfave/cli/v3"
 
-	"user/internal/user/config"
-
 	"github.com/distributed-programming-2026/lib/runtime"
 )
 
@@ -18,7 +16,7 @@ const appID = "user"
 
 type application struct {
 	logger *slog.Logger
-	conf   config.Env
+	conf   Env
 }
 
 func main() {

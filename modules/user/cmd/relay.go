@@ -7,11 +7,9 @@ import (
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/event/outbox"
 	"github.com/distributed-programming-2026/go-sdk/pkg/logging"
-
-	"user/internal/user/config"
 )
 
-func runRelay(ctx context.Context, logger *slog.Logger, relay *outbox.Relay, conf config.Relay) error {
+func runRelay(ctx context.Context, logger *slog.Logger, relay *outbox.Relay, conf Relay) error {
 	ticker := time.NewTicker(conf.Interval)
 	defer ticker.Stop()
 

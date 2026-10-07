@@ -6,12 +6,9 @@ import (
 	"log/slog"
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/amqp"
-	"github.com/urfave/cli/v3"
-
 	domainevent "github.com/distributed-programming-2026/lib/event"
 	"github.com/distributed-programming-2026/lib/runtime/http"
-
-	"user/internal/user/config"
+	"github.com/urfave/cli/v3"
 )
 
 func (a *application) messageHandlerCmd() *cli.Command {
@@ -23,7 +20,7 @@ func (a *application) messageHandlerCmd() *cli.Command {
 	}
 }
 
-func messageHandler(ctx context.Context, logger *slog.Logger, conf config.Env) (err error) {
+func messageHandler(ctx context.Context, logger *slog.Logger, conf Env) (err error) {
 	db, err := openDatabase(ctx, logger, conf)
 	if err != nil {
 		return err

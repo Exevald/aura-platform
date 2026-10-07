@@ -9,7 +9,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"user/internal/user/app"
-	"user/internal/user/config"
 	eventinfra "user/internal/user/infra/event"
 )
 
@@ -22,7 +21,7 @@ func (a *application) serviceCmd() *cli.Command {
 	}
 }
 
-func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err error) {
+func service(ctx context.Context, logger *slog.Logger, conf Env) (err error) {
 	db, err := openDatabase(ctx, logger, conf)
 	if err != nil {
 		return err

@@ -7,3 +7,17 @@ message Echo {
   string ID = 1;
   string Body = 2;
 }
+
+message UserCreated {
+  string ID = 1;
+  string Login = 2;
+}
+
+message UserUpdated {
+  string ID = 1;
+  string Login = 2;
+}
+
+message UserRemoved {
+  string ID = 1;
+}
