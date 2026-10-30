@@ -1,8 +1,11 @@
 go 1.27.1
 
 use (
+	./modules/access
 	./modules/auditor
 	./modules/auth
+	./modules/bff
+	./modules/editor
 	./modules/gateway
 	./modules/session
 	./modules/user

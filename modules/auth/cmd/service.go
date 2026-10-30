@@ -11,6 +11,7 @@ import (
 	"auth/internal/auth/app"
 	"auth/internal/auth/config"
 	eventinfra "auth/internal/auth/infra/event"
+	"auth/internal/auth/infra/password"
 )
 
 func (a *application) serviceCmd() *cli.Command {
@@ -46,14 +47,29 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 		return err
 	}
 
+	clients, err := newServiceClients(conf)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = errors.Join(err, clients.Close())
+	}()
+
 	dispatcherFactory := eventinfra.NewDispatcherFactory(appID, dispatcher)
-	svc := app.NewService(db.unit, dispatcherFactory)
+	svc := app.NewAuthService(
+		db.unit,
+		dispatcherFactory,
+		password.NewArgon2ID(),
+		clients.users,
+		clients.sessions,
+		clients.access,
+	)
 	httpServer, err := newHTTPServer(logger, conf, svc)
 	if err != nil {
 		return err
 	}
 
-	grpcServer, err := newGRPCServer(logger, conf, svc)
+	grpcServer, err := newGRPCServer(conf)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,11 @@
+syntax = "proto3";
+package editorEvents;
+option go_package = "/.;editorevents";
+
+message DocumentChanged {
+  string type = 1;
+  string document_id = 2;
+  string actor_user_id = 3;
+  int64 version = 4;
+  int64 occurred_at_unix = 5;
+}

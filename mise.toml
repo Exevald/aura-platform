@@ -6,6 +6,7 @@ _.source = "{{ config_root }}/mise-env/docker.sh"
 [monorepo]
 config_roots = [
     "lib",
+    "frontend",
     "modules/*",
 ]
 
@@ -22,6 +23,7 @@ protoc-gen-go-grpc = "1.6.2"
 description = "Generate, tidy, build, test, and lint every module sequentially"
 run = '''
 MISE_JOBS=1 mise run //lib:all
+MISE_JOBS=1 mise run //frontend:all
 for config in modules/*/mise.toml; do
     [ -f "$config" ] || continue
     module=${config%/mise.toml}

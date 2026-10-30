@@ -15,19 +15,3 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-
-  session-message-handler:
-    image: distributed-programming-session:local
-    command: [message-handler]
-    environment:
-      SESSION_MYSQL_ADDRESS: mysql:3306
-      SESSION_AMQP_URL: amqp://local:local@rabbitmq:5672/
-    ports:
-      - "${SESSION_MESSAGE_HANDLER_PORT:-8083}:8082"
-    depends_on:
-      session-service:
-        condition: service_started
-      mysql:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy

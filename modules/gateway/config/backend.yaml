@@ -1,0 +1,22 @@
+kind: gateway/service/v1
+name: backend
+routes:
+  - pattern: '^/gateway/status$'
+    directResponse:
+      status: 200
+      inlineString: 'gateway is running'
+  - pattern: '^/api/public/v1/auth/.*$'
+    target: '$(AUTH_UPSTREAM:-auth-service:8082)'
+  - pattern: '^/api/bff/.*$'
+    target: '$(BFF_UPSTREAM:-bff-service:8082)'
+    interceptors:
+      - id: session
+  - pattern: '^/api/editor/.*$'
+    target: '$(EDITOR_UPSTREAM:-editor-service:8082)'
+    interceptors:
+      - id: session
+      - id: access
+        parameters:
+          moduleID: '$(EDITOR_MODULE_ID:-b8547c76-51fd-4f7c-9c68-8f30c84f61cb)'
+  - pattern: '^/.*$'
+    target: '$(FRONTEND_UPSTREAM:-frontend:80)'

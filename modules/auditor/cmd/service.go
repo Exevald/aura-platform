@@ -8,9 +8,7 @@ import (
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
 
-	"auditor/internal/auditor/app"
 	"auditor/internal/auditor/config"
-	eventinfra "auditor/internal/auditor/infra/event"
 )
 
 func (a *application) serviceCmd() *cli.Command {
@@ -31,29 +29,12 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 		err = errors.Join(err, db.connector.Close())
 	}()
 
-	connection := newConnection(logger, conf)
-	defer func() {
-		err = errors.Join(err, connection.Stop())
-	}()
-
-	dispatcher, relay, err := newDispatcher(logger, conf, db, connection)
+	httpServer, err := newHTTPServer(conf)
 	if err != nil {
 		return err
 	}
 
-	err = connection.Start()
-	if err != nil {
-		return err
-	}
-
-	dispatcherFactory := eventinfra.NewDispatcherFactory(appID, dispatcher)
-	svc := app.NewService(db.unit, dispatcherFactory)
-	httpServer, err := newHTTPServer(logger, conf, svc)
-	if err != nil {
-		return err
-	}
-
-	grpcServer, err := newGRPCServer(logger, conf, svc)
+	grpcServer, err := newGRPCServer(conf)
 	if err != nil {
 		return err
 	}
@@ -64,9 +45,6 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 	})
 	errGroup.Go(func() error {
 		return grpcServer.Serve(egCtx)
-	})
-	errGroup.Go(func() error {
-		return runRelay(egCtx, logger, relay, conf.Relay)
 	})
 	return errGroup.Wait()
 }

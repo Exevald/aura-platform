@@ -1,0 +1,36 @@
+syntax = "proto3";
+package sessionInternalAPI;
+
+option go_package = "/.;sessioninternalapi";
+
+import "google/protobuf/timestamp.proto";
+
+service SessionService {
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  rpc RevokeUserSessions(RevokeUserSessionsRequest) returns (RevokeUserSessionsResponse);
+}
+
+message CreateSessionRequest {
+  string user_id = 1;
+  bool remember_me = 2;
+}
+message CreateSessionResponse {
+  string session_id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message ValidateSessionRequest { string session_id = 1; }
+message ValidateSessionResponse {
+  string user_id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  bool persistent = 3;
+}
+
+message RevokeSessionRequest { string session_id = 1; }
+message RevokeSessionResponse {}
+
+message RevokeUserSessionsRequest { string user_id = 1; }
+message RevokeUserSessionsResponse {}
+

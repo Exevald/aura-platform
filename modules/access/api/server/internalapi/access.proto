@@ -1,0 +1,15 @@
+syntax = "proto3";
+package accessInternalAPI;
+option go_package = "/.;accessinternalapi";
+
+service AccessService {
+  rpc GrantModuleAccess(GrantModuleAccessRequest) returns (GrantModuleAccessResponse);
+  rpc RevokeModuleAccess(RevokeModuleAccessRequest) returns (RevokeModuleAccessResponse);
+  rpc CheckModuleAccess(CheckModuleAccessRequest) returns (CheckModuleAccessResponse);
+}
+message GrantModuleAccessRequest { string user_id = 1; string module_id = 2; }
+message GrantModuleAccessResponse {}
+message RevokeModuleAccessRequest { string user_id = 1; string module_id = 2; }
+message RevokeModuleAccessResponse {}
+message CheckModuleAccessRequest { string user_id = 1; string module_id = 2; }
+message CheckModuleAccessResponse { bool allowed = 1; }

@@ -1,96 +1,140 @@
 package integration_tests
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/distributed-programming-2026/go-sdk/pkg/event"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
 
-	gatewayevents "gateway/api/events"
+	pb "github.com/distributed-programming-2026/gateway/api/client/interceptorgrpc"
+	"github.com/distributed-programming-2026/gateway/internal/gateway/config"
+	"github.com/distributed-programming-2026/gateway/internal/gateway/infra/server"
+	"google.golang.org/grpc"
 )
 
-type logBuffer struct {
-	mu     sync.Mutex
-	buffer bytes.Buffer
+func load(t *testing.T, yaml string) *config.Config {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(file, []byte(yaml), 0o600))
+
+	c, err := config.Load(file)
+	require.NoError(t, err)
+
+	return c
+}
+func gateway(t *testing.T, yaml string) *httptest.Server {
+	t.Helper()
+	r, err := server.New(load(t, yaml))
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		assert.NoError(t, r.Close())
+	})
+	s := httptest.NewUnstartedServer(r.Handler)
+	s.Config.Protocols = server.Protocols()
+	s.Start()
+	t.Cleanup(s.Close)
+	return s
+}
+func request(t *testing.T, s *httptest.Server, method, path, body string, headers http.Header) (statusCode int, responseHeaders http.Header, responseBody string) {
+	t.Helper()
+	req, err := http.NewRequest(method, s.URL+path, strings.NewReader(body))
+	require.NoError(t, err)
+
+	req.Header = headers.Clone()
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+	client := s.Client()
+	client.Timeout = 3 * time.Second
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	response, err := client.Do(req)
+	require.NoError(t, err)
+
+	defer func() { _ = response.Body.Close() }()
+	data, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+
+	return response.StatusCode, response.Header, string(data)
 }
 
-func (b *logBuffer) Accept(log testcontainers.Log) {
-	_, _ = b.Write(log.Content)
+type interceptorFunc func(context.Context, *pb.InterceptRequest) (*pb.InterceptResponse, error)
+type grpcInterceptor struct {
+	pb.UnimplementedInterceptorServer
+	f interceptorFunc
 }
 
-func (b *logBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.Write(p)
+func (s *grpcInterceptor) Intercept(ctx context.Context, r *pb.InterceptRequest) (*pb.InterceptResponse, error) {
+	return s.f(ctx, r)
 }
+func grpcServer(t *testing.T, f interceptorFunc) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
-func (b *logBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.String()
+	s := grpc.NewServer()
+	pb.RegisterInterceptorServer(s, &grpcInterceptor{f: f})
+	go func() { _ = s.Serve(l) }()
+	t.Cleanup(s.Stop)
+	return l.Addr().String()
 }
-
-func (b *logBuffer) count(message, key, value string) int {
-	var count int
-	for _, line := range strings.Split(b.String(), "\n") {
-		var record map[string]any
-		err := json.Unmarshal([]byte(line), &record)
-		if err == nil && record["msg"] == message && (key == "" || record[key] == value) {
-			count++
+func ok(m *pb.ContinueResponse) *pb.InterceptResponse {
+	return &pb.InterceptResponse{Result: &pb.InterceptResponse_ContinueResponse{ContinueResponse: m}}
+}
+func set(key string, values ...string) *pb.HeaderMutation {
+	return &pb.HeaderMutation{Set: []*pb.HeaderValues{{Key: key, Values: values}}}
+}
+func getHeader(headers []*pb.Header, key string) string {
+	for _, h := range headers {
+		if strings.EqualFold(h.Key, key) {
+			return h.Value
 		}
 	}
-	return count
+	return ""
 }
-
-func checkEcho(t *testing.T, id, body string) event.Envelope {
+func restServer(t *testing.T, f func(map[string]any) any) *httptest.Server {
 	t.Helper()
-	client := testEnv.connector.TransactionalClient()
-	var stored string
-	err := client.GetContext(t.Context(), "test.echo", &stored, "SELECT body FROM echo WHERE id = ?", id)
-	require.NoError(t, err)
-	require.Equal(t, body, stored)
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/gateway/api/v1/intercept", r.URL.Path,
+			"invalid REST endpoint")
+		assert.Equal(t, "POST", r.Method,
+			"invalid REST endpoint")
 
-	var rows []struct {
-		Payload []byte `db:"payload"`
-	}
-	err = client.SelectContext(t.Context(), "test.outbox", &rows, "SELECT payload FROM event_outbox")
-	require.NoError(t, err)
-	for _, row := range rows {
-		envelope, err := event.Unmarshal(row.Payload)
-		require.NoError(t, err)
-		var echo gatewayevents.Echo
-		err = envelope.UnmarshalPayload(&echo)
-		require.NoError(t, err)
-		if echo.ID == id {
-			require.Equal(t, body, echo.Body)
-			require.Equal(t, moduleID, envelope.Producer())
-			require.Equal(t, "Echo", envelope.Type())
-			require.NotEmpty(t, envelope.ID())
-			require.NotEmpty(t, envelope.CorrelationID())
-			return envelope
-		}
-	}
-	t.Fatal("echo was committed without an outbox event")
-	return event.Envelope{}
+		var input map[string]any
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&input))
+
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"payload": f(input)}))
+	}))
+	t.Cleanup(s.Close)
+	return s
 }
 
-func waitHandled(t *testing.T, envelope event.Envelope, count int) {
-	t.Helper()
-	require.Eventually(t, func() bool {
-		return testEnv.logs.count("event handling completed", "event_id", envelope.ID()) >= count
-	}, 30*time.Second, 20*time.Millisecond)
+const multiHeader = "X-Multi"
+const responseLimitScenario = "response-limit"
+const jsonHeaderKey = "key"
 
-	var markers int
-	err := testEnv.connector.TransactionalClient().GetContext(t.Context(), "test.inbox", &markers,
-		"SELECT COUNT(*) FROM event_inbox WHERE consumer = ? AND event_id = ?",
-		testEnv.conf.AMQP.Queue, envelope.ID(),
-	)
-	require.NoError(t, err)
-	require.Equal(t, 1, markers)
-}
+const jsonSet = "set"
+const timeoutScenario = "timeout"
+
+const authorizationHeader = "Authorization"
+
+const jsonHeaderValues = "values"
+
+const grpcTransport = "grpc"
+
+const restTransport = "rest"
+
+const firstPatternPath = "/one"
+
+const tenantHost = "tenant.example"

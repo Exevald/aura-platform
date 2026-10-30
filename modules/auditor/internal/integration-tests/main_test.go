@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -107,11 +106,6 @@ func (e *environment) prepare(ctx context.Context) error {
 	e.conf.MySQL.User = databaseConfig.User
 	e.conf.MySQL.Password = databaseConfig.Passwd
 
-	err = e.startBroker(ctx)
-	if err != nil {
-		return err
-	}
-
 	e.connector = mysql.NewConnector()
 	err = e.connector.Open(dsn, mysql.Config{
 		MaxConnections: 10,
@@ -122,13 +116,7 @@ func (e *environment) prepare(ctx context.Context) error {
 	e.closers = append(e.closers, e.connector.Close)
 
 	e.conf.App.GraceTimeout = time.Second
-	e.conf.Relay.Interval = 50 * time.Millisecond
-	e.conf.Relay.PublishTimeout = time.Second
 
-	_, err = e.startApplication(ctx, "message-handler")
-	if err != nil {
-		return err
-	}
 	service, err := e.startApplication(ctx, "service")
 	if err != nil {
 		return err
@@ -141,37 +129,6 @@ func (e *environment) prepare(ctx context.Context) error {
 	return err
 }
 
-func (e *environment) startBroker(ctx context.Context) error {
-	broker, err := e.startContainer(ctx, testcontainers.ContainerRequest{
-		Image:        "rabbitmq:4.1-alpine",
-		ExposedPorts: []string{"5672/tcp"},
-		Networks:     []string{e.network.Name},
-		NetworkAliases: map[string][]string{
-			e.network.Name: {"rabbitmq"},
-		},
-		Env: map[string]string{
-			"RABBITMQ_DEFAULT_USER": "integration",
-			"RABBITMQ_DEFAULT_PASS": "integration-password",
-		},
-		WaitingFor: wait.ForLog("Server startup complete").WithStartupTimeout(time.Minute),
-	})
-	if err != nil {
-		return err
-	}
-	address, err := containerAddress(ctx, broker, "5672/tcp")
-	if err != nil {
-		return err
-	}
-	brokerURL := &url.URL{
-		Scheme: "amqp",
-		User:   url.UserPassword("integration", "integration-password"),
-		Host:   address,
-		Path:   "/",
-	}
-	e.conf.AMQP.URL = brokerURL.String()
-	return nil
-}
-
 func (e *environment) startApplication(ctx context.Context, command string) (testcontainers.Container, error) {
 	prefix := strings.ToUpper(moduleID) + "_"
 	return e.startContainer(ctx, testcontainers.ContainerRequest{
@@ -180,17 +137,13 @@ func (e *environment) startApplication(ctx context.Context, command string) (tes
 		ExposedPorts: []string{"8081/tcp", "8082/tcp"},
 		Networks:     []string{e.network.Name},
 		Env: map[string]string{
-			prefix + "MYSQL_ADDRESS":         "mysql:3306",
-			prefix + "MYSQL_DATABASE":        e.conf.MySQL.Database,
-			prefix + "MYSQL_USER":            e.conf.MySQL.User,
-			prefix + "MYSQL_PASSWORD":        e.conf.MySQL.Password,
-			prefix + "AMQP_URL":              "amqp://integration:integration-password@rabbitmq:5672/",
-			prefix + "AMQP_QUEUE":            e.conf.AMQP.Queue,
-			prefix + "HTTP_ADDRESS":          ":8082",
-			prefix + "GRPC_ADDRESS":          ":8081",
-			prefix + "APP_GRACE_TIMEOUT":     e.conf.App.GraceTimeout.String(),
-			prefix + "RELAY_INTERVAL":        e.conf.Relay.Interval.String(),
-			prefix + "RELAY_PUBLISH_TIMEOUT": e.conf.Relay.PublishTimeout.String(),
+			prefix + "MYSQL_ADDRESS":     "mysql:3306",
+			prefix + "MYSQL_DATABASE":    e.conf.MySQL.Database,
+			prefix + "MYSQL_USER":        e.conf.MySQL.User,
+			prefix + "MYSQL_PASSWORD":    e.conf.MySQL.Password,
+			prefix + "HTTP_ADDRESS":      ":8082",
+			prefix + "GRPC_ADDRESS":      ":8081",
+			prefix + "APP_GRACE_TIMEOUT": e.conf.App.GraceTimeout.String(),
 		},
 		LogConsumerCfg: &testcontainers.LogConsumerConfig{
 			Consumers: []testcontainers.LogConsumer{&e.logs},

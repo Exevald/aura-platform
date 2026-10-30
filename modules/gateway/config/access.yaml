@@ -1,0 +1,6 @@
+kind: gateway/service/v1
+name: access
+interceptor:
+  address: '$(ACCESS_INTERCEPTOR_ADDRESS:-access-service:8081)'
+  transport: grpc
+  timeout: 5s

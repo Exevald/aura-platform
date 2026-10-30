@@ -3,21 +3,16 @@ package userEvents;
 
 option go_package = "/.;userevents";
 
-message Echo {
-  string ID = 1;
-  string Body = 2;
-}
-
 message UserCreated {
-  string ID = 1;
-  string Login = 2;
+  string id = 1;
+  string display_name = 2;
 }
 
 message UserUpdated {
-  string ID = 1;
-  string Login = 2;
+  string id = 1;
+  string display_name = 2;
 }
 
 message UserRemoved {
-  string ID = 1;
+  string id = 1;
 }

@@ -9,15 +9,16 @@ import (
 	"github.com/distributed-programming-2026/go-sdk/pkg/uow"
 	mysqldriver "github.com/go-sql-driver/mysql"
 
-	echomysql "user/internal/user/infra/mysql"
+	"user/internal/user/config"
+	usermysql "user/internal/user/infra/mysql"
 )
 
 type database struct {
 	connector mysql.Connector
-	unit      uow.UnitOfWorkWithRepositoryProvider[*echomysql.RepositoryProvider]
+	unit      uow.UnitOfWorkWithRepositoryProvider[*usermysql.RepositoryProvider]
 }
 
-func openDatabase(ctx context.Context, logger *slog.Logger, conf Env) (_ *database, err error) {
+func openDatabase(ctx context.Context, logger *slog.Logger, conf config.Env) (_ *database, err error) {
 	dsn := mysqldriver.NewConfig()
 	dsn.Net = "tcp"
 	dsn.Addr = conf.MySQL.Address
@@ -53,7 +54,7 @@ func openDatabase(ctx context.Context, logger *slog.Logger, conf Env) (_ *databa
 		return nil, err
 	}
 
-	unit := uow.NewUnitOfWork(mysql.NewConnectionPool(client), echomysql.NewRepositoryProvider)
+	unit := uow.NewUnitOfWork(mysql.NewConnectionPool(client), usermysql.NewRepositoryProvider)
 	return &database{
 		connector: connector,
 		unit:      unit,

@@ -31,6 +31,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     modules = sorted(root.glob("modules/*/compose.yaml"), key=lambda path: (path.parent.name != "template", path.parent.name))
+    frontend_compose = root / "frontend" / "compose.yaml"
     env = dict(os.environ)
     used_ports = set()
     keys = [f"{path.parent.name.upper()}_{kind}_PORT" for path in modules for kind in ["GRPC", "HTTP", "MESSAGE_HANDLER"]]
@@ -53,6 +54,8 @@ def main():
     command = find_compose_command() + ["--project-name", env.get("LOCAL_ENV_PROJECT", "distributed-programming-local"), "--project-directory", str(root), "-f", str(root / "compose.yaml")]
     for path in modules:
         command.extend(["-f", str(path)])
+    if frontend_compose.exists():
+        command.extend(["-f", str(frontend_compose)])
 
     def compose(*arguments, **kwargs):
         subprocess.run(command + list(arguments), cwd=root, env=env, check=True, **kwargs)
@@ -63,6 +66,7 @@ def main():
             env["GOARCH"] = {"aarch64": "arm64", "x86_64": "amd64"}.get(architecture, architecture)
             for path in modules:
                 subprocess.run(["mise", "run", f"//modules/{path.parent.name}:build"], cwd=root, env=env, check=True)
+            subprocess.run(["mise", "run", "//frontend:build"], cwd=root, env=env, check=True)
         compose("up", "-d", "--wait", "mysql", "rabbitmq")
         # Provision every module on each up, including modules added after
         # the infrastructure volumes were created.

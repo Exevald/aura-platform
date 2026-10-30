@@ -47,13 +47,19 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 	}
 
 	dispatcherFactory := eventinfra.NewDispatcherFactory(appID, dispatcher)
-	svc := app.NewService(db.unit, dispatcherFactory)
-	httpServer, err := newHTTPServer(logger, conf, svc)
+	svc := app.NewSessionService(
+		db.unit,
+		dispatcherFactory,
+		conf.DefaultLifetime,
+		conf.PersistentLifetime,
+	)
+
+	httpServer, err := newHTTPServer(conf)
 	if err != nil {
 		return err
 	}
 
-	grpcServer, err := newGRPCServer(logger, conf, svc)
+	grpcServer, err := newGRPCServer(conf, svc)
 	if err != nil {
 		return err
 	}

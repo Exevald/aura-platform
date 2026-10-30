@@ -2,74 +2,57 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/distributed-programming-2026/go-sdk/pkg/logging"
-	"github.com/kelseyhightower/envconfig"
+	"github.com/distributed-programming-2026/gateway/internal/gateway/config"
 	"github.com/urfave/cli/v3"
-
-	"gateway/internal/gateway/config"
-
-	"github.com/distributed-programming-2026/lib/runtime"
 )
 
-const appID = "gateway"
-
-type application struct {
-	logger *slog.Logger
-	conf   config.Env
-}
-
 func main() {
-	if err := runMain(); err != nil {
+	if err := run(); err != nil {
+		slog.Error("gateway stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func runMain() error {
-	ctx, stop := runtime.ListenOSKillSignalsContext(context.Background())
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	a := &application{
-		logger: logging.New(logging.Config{
-			AppID: appID,
-		}),
-	}
-	if err := a.command().Run(ctx, os.Args); err != nil {
-		a.logger.Error("stopped with error", logging.Error(err))
-		return err
-	}
-	a.logger.Info("stopped successfully")
-	return nil
+	return command().Run(ctx, os.Args)
 }
 
-func (a *application) command() *cli.Command {
+func command() *cli.Command {
 	return &cli.Command{
-		Name:           appID,
+		Name:           "gateway",
+		Usage:          "Go gateway with external interceptor processing",
 		DefaultCommand: "service",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name: "debug",
-			},
-		},
-		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
-			err := envconfig.Process(appID, &a.conf)
-			if err != nil {
-				return ctx, err
-			}
-			err = a.conf.Validate()
-			if err != nil {
-				return ctx, err
-			}
-			a.logger = logging.New(logging.Config{
-				AppID: appID,
-				Debug: c.Bool("debug") || a.conf.App.Debug,
-			})
-			return ctx, nil
+			&cli.StringFlag{Name: "config", Value: "config", Usage: "YAML file or directory", Sources: cli.EnvVars("GATEWAY_CONFIG")},
+			&cli.BoolFlag{Name: "check-config", Usage: "validate configuration and exit"},
 		},
 		Commands: []*cli.Command{
-			a.serviceCmd(),
-			a.messageHandlerCmd(),
+			{Name: "service", Usage: "start proxy and health listeners", Action: func(ctx context.Context, c *cli.Command) error {
+				conf, err := config.Load(c.String("config"))
+				if err != nil {
+					return err
+				}
+				if c.Bool("check-config") {
+					_, err = fmt.Fprintln(c.Writer, "configuration valid")
+					return err
+				}
+				return serve(ctx, conf)
+			}},
+			{Name: "check-config", Usage: "validate configuration and exit", Action: func(_ context.Context, c *cli.Command) error {
+				if _, err := config.Load(c.String("config")); err != nil {
+					return err
+				}
+				_, err := fmt.Fprintln(c.Writer, "configuration valid")
+				return err
+			}},
 		},
 	}
 }

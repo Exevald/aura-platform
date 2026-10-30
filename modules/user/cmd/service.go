@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"user/internal/user/app"
+	"user/internal/user/config"
 	eventinfra "user/internal/user/infra/event"
 )
 
@@ -21,7 +22,7 @@ func (a *application) serviceCmd() *cli.Command {
 	}
 }
 
-func service(ctx context.Context, logger *slog.Logger, conf Env) (err error) {
+func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err error) {
 	db, err := openDatabase(ctx, logger, conf)
 	if err != nil {
 		return err
@@ -46,13 +47,13 @@ func service(ctx context.Context, logger *slog.Logger, conf Env) (err error) {
 	}
 
 	dispatcherFactory := eventinfra.NewDispatcherFactory(appID, dispatcher)
-	svc := app.NewService(db.unit, dispatcherFactory)
-	httpServer, err := newHTTPServer(logger, conf, svc)
+	svc := app.NewUserService(db.unit, dispatcherFactory)
+	httpServer, err := newHTTPServer(conf)
 	if err != nil {
 		return err
 	}
 
-	grpcServer, err := newGRPCServer(logger, conf, svc)
+	grpcServer, err := newGRPCServer(conf, svc)
 	if err != nil {
 		return err
 	}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -85,14 +86,15 @@ func (e *environment) prepare(ctx context.Context) error {
 		tcmysql.WithPassword("integration:password@local"),
 		network.WithNetwork([]string{"mysql"}, e.network),
 	)
-	if mysqlContainer != nil {
-		e.closers = append(e.closers, func() error {
-			return testcontainers.TerminateContainer(mysqlContainer)
-		})
-	}
 	if err != nil {
 		return err
 	}
+	if mysqlContainer == nil {
+		return nil
+	}
+	e.closers = append(e.closers, func() error {
+		return testcontainers.TerminateContainer(mysqlContainer)
+	})
 
 	dsn, err := mysqlContainer.ConnectionString(ctx, "parseTime=true")
 	if err != nil {
@@ -125,10 +127,6 @@ func (e *environment) prepare(ctx context.Context) error {
 	e.conf.Relay.Interval = 50 * time.Millisecond
 	e.conf.Relay.PublishTimeout = time.Second
 
-	_, err = e.startApplication(ctx, "message-handler")
-	if err != nil {
-		return err
-	}
 	service, err := e.startApplication(ctx, "service")
 	if err != nil {
 		return err
@@ -185,7 +183,6 @@ func (e *environment) startApplication(ctx context.Context, command string) (tes
 			prefix + "MYSQL_USER":            e.conf.MySQL.User,
 			prefix + "MYSQL_PASSWORD":        e.conf.MySQL.Password,
 			prefix + "AMQP_URL":              "amqp://integration:integration-password@rabbitmq:5672/",
-			prefix + "AMQP_QUEUE":            e.conf.AMQP.Queue,
 			prefix + "HTTP_ADDRESS":          ":8082",
 			prefix + "GRPC_ADDRESS":          ":8081",
 			prefix + "APP_GRACE_TIMEOUT":     e.conf.App.GraceTimeout.String(),
@@ -216,8 +213,8 @@ func (e *environment) startContainer(ctx context.Context, request testcontainers
 
 func (e *environment) close() error {
 	var errs []error
-	for i := len(e.closers) - 1; i >= 0; i-- {
-		errs = append(errs, e.closers[i]())
+	for _, v := range slices.Backward(e.closers) {
+		errs = append(errs, v())
 	}
 	return errors.Join(errs...)
 }

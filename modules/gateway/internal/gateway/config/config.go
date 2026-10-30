@@ -1,71 +1,121 @@
+// Package config loads and compiles an immutable gateway configuration.
 package config
 
 import (
 	"errors"
+	"net/url"
+	"regexp"
 	"time"
+
+	"go.yaml.in/yaml/v3"
 )
 
-type Env struct {
-	App   App   `envconfig:"app"`
-	GRPC  GRPC  `envconfig:"grpc"`
-	HTTP  HTTP  `envconfig:"http"`
-	MySQL MySQL `envconfig:"mysql"`
-	AMQP  AMQP  `envconfig:"amqp"`
-	Relay Relay `envconfig:"relay"`
-}
+type Duration time.Duration
 
-type App struct {
-	Debug        bool          `envconfig:"debug"`
-	GraceTimeout time.Duration `envconfig:"grace_timeout" default:"30s"`
-}
-
-type GRPC struct {
-	Address string `envconfig:"address" default:":8081"`
-}
-
-type HTTP struct {
-	Address string `envconfig:"address" default:":8082"`
-}
-
-type MySQL struct {
-	Address               string        `envconfig:"address" default:"localhost:3306"`
-	Database              string        `envconfig:"database" default:"gateway"`
-	User                  string        `envconfig:"user" default:"gateway"`
-	Password              string        `envconfig:"password" default:"gateway"`
-	MaxConnections        int           `envconfig:"max_connections" default:"10"`
-	ConnectionMaxLifeTime time.Duration `envconfig:"connection_max_lifetime" default:"30m"`
-	ConnectionMaxIdleTime time.Duration `envconfig:"connection_max_idle_time" default:"5m"`
-	ConnectTimeout        time.Duration `envconfig:"connect_timeout" default:"5s"`
-	ReadTimeout           time.Duration `envconfig:"read_timeout" default:"10s"`
-	WriteTimeout          time.Duration `envconfig:"write_timeout" default:"10s"`
-}
-
-type AMQP struct {
-	URL            string        `envconfig:"url" default:"amqp://local:local@localhost:5672/"`
-	Queue          string        `envconfig:"queue" default:"gateway.echo"`
-	ConnectTimeout time.Duration `envconfig:"connect_timeout" default:"5s"`
-	PrefetchCount  int           `envconfig:"prefetch_count" default:"10"`
-}
-
-type Relay struct {
-	Interval       time.Duration `envconfig:"interval" default:"1s"`
-	BatchSize      int           `envconfig:"batch_size" default:"100"`
-	PublishTimeout time.Duration `envconfig:"publish_timeout" default:"10s"`
-	LockTimeout    time.Duration `envconfig:"lock_timeout" default:"1s"`
-}
-
-func (c Env) Validate() error {
-	if c.App.GraceTimeout <= 0 || c.AMQP.ConnectTimeout <= 0 || c.Relay.Interval <= 0 || c.Relay.PublishTimeout <= 0 || c.Relay.LockTimeout < 0 {
-		return errors.New("timeouts and relay interval must be positive; lock timeout must not be negative")
+func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
+	if n.Tag != "!!str" {
+		return errors.New("duration must be a string")
 	}
-	if c.MySQL.ConnectTimeout <= 0 || c.MySQL.ReadTimeout <= 0 || c.MySQL.WriteTimeout <= 0 || c.MySQL.ConnectionMaxLifeTime < 0 || c.MySQL.ConnectionMaxIdleTime < 0 {
-		return errors.New("MySQL timeouts must be positive; connection lifetimes must not be negative")
+	v, err := time.ParseDuration(n.Value)
+	if err != nil || v < 0 {
+		return errors.New("invalid duration")
 	}
-	if c.MySQL.MaxConnections <= 0 || c.AMQP.PrefetchCount <= 0 || c.Relay.BatchSize <= 0 {
-		return errors.New("connection, prefetch and batch counts must be positive")
-	}
-	if c.MySQL.Address == "" || c.MySQL.Database == "" || c.MySQL.User == "" || c.AMQP.URL == "" || c.AMQP.Queue == "" || c.HTTP.Address == "" || c.GRPC.Address == "" {
-		return errors.New("database, broker and server configuration must not be empty")
-	}
+	*d = Duration(v)
 	return nil
+}
+func Value(d *Duration, fallback time.Duration) time.Duration {
+	if d == nil {
+		return fallback
+	}
+	return time.Duration(*d)
+}
+
+type Gateway struct {
+	Kind              string `yaml:"kind"`
+	Weight            int    `yaml:"weight"`
+	Port              int    `yaml:"port"`
+	HealthzPort       int    `yaml:"healthzPort"`
+	GatewayPort       int    `yaml:"gatewayPort"`
+	GatewayHealthHost int    `yaml:"gatewayHealthHost"`
+	ProxyTimeouts     struct {
+		Timeout     *Duration `yaml:"timeout"`
+		IdleTimeout *Duration `yaml:"idleTimeout"`
+	} `yaml:"proxyTimeouts"`
+	InternalHeaders struct {
+		Headers []string `yaml:"headers"`
+	} `yaml:"internalHeaders"`
+}
+type Interceptor struct {
+	Address   string    `yaml:"address"`
+	Transport string    `yaml:"transport"`
+	Timeout   *Duration `yaml:"timeout"`
+}
+type Service struct {
+	Kind        string       `yaml:"kind"`
+	Weight      int          `yaml:"weight"`
+	Name        string       `yaml:"name"`
+	Interceptor *Interceptor `yaml:"interceptor"`
+	Routes      []Route      `yaml:"routes"`
+}
+type Rule struct {
+	Old              string         `yaml:"old"`
+	New              string         `yaml:"new"`
+	MaxRedirectCount *int           `yaml:"maxRedirectCount"`
+	RE               *regexp.Regexp `yaml:"-"`
+}
+type HeaderMatch struct {
+	Header     string         `yaml:"header"`
+	ValueRegex string         `yaml:"valueRegex"`
+	RE         *regexp.Regexp `yaml:"-"`
+}
+type Header struct {
+	Value                 string         `yaml:"value"`
+	Always                bool           `yaml:"always"`
+	PathParametersPattern string         `yaml:"pathParametersPattern"`
+	RE                    *regexp.Regexp `yaml:"-"`
+}
+type DirectResponse struct {
+	Status       int    `yaml:"status"`
+	InlineString string `yaml:"inlineString"`
+}
+type Invocation struct {
+	ID                    string            `yaml:"id"`
+	PathParametersPattern string            `yaml:"pathParametersPattern"`
+	Parameters            map[string]string `yaml:"parameters"`
+	ProcessingMode        ProcessingMode    `yaml:"processingMode"`
+	RE                    *regexp.Regexp    `yaml:"-"`
+}
+type BasicAuth struct {
+	Users []string `yaml:"users"`
+}
+type Route struct {
+	Pattern            string            `yaml:"pattern"`
+	Patterns           []string          `yaml:"patterns"`
+	Target             string            `yaml:"target"`
+	Rewrite            *Rule             `yaml:"rewrite"`
+	InternalRedirect   *Rule             `yaml:"internalRedirect"`
+	Timeout            *Duration         `yaml:"timeout"`
+	IdleTimeout        *Duration         `yaml:"idleTimeout"`
+	HeaderMatch        []HeaderMatch     `yaml:"headerMatch"`
+	AllowedMethods     []string          `yaml:"allowedMethods"`
+	Interceptors       []Invocation      `yaml:"interceptors"`
+	DirectResponse     *DirectResponse   `yaml:"directResponse"`
+	DisableHostRewrite bool              `yaml:"disableHostRewrite"`
+	UseHTTP2           bool              `yaml:"useHTTP2"`
+	AddHeaders         map[string]Header `yaml:"addHeaders"`
+	BasicAuth          *BasicAuth        `yaml:"basicAuth"`
+	REs                []*regexp.Regexp  `yaml:"-"`
+	URL                *url.URL          `yaml:"-"`
+	Service            string            `yaml:"-"`
+}
+type Config struct {
+	Gateway      Gateway
+	Routes       []Route
+	Interceptors map[string]Interceptor
+}
+type document struct {
+	data           map[string]any
+	file           string
+	weight         int
+	secretPriority int
 }

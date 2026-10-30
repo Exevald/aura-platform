@@ -3,7 +3,16 @@ package sessionEvents;
 
 option go_package = "/.;sessionevents";
 
-message Echo {
-  string ID = 1;
-  string Body = 2;
+message SessionCreated {
+  string id = 1;
+  string user_id = 2;
+  int64 occurred_at_unix = 3;
+  int64 expires_at_unix = 4;
+  bool persistent = 5;
+}
+
+message SessionRevoked {
+  string id = 1;
+  string user_id = 2;
+  int64 occurred_at_unix = 3;
 }

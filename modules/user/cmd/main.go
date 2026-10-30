@@ -6,17 +6,18 @@ import (
 	"os"
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/logging"
+	"github.com/distributed-programming-2026/lib/runtime"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/urfave/cli/v3"
 
-	"github.com/distributed-programming-2026/lib/runtime"
+	"user/internal/user/config"
 )
 
 const appID = "user"
 
 type application struct {
 	logger *slog.Logger
-	conf   Env
+	conf   config.Env
 }
 
 func main() {
@@ -67,7 +68,6 @@ func (a *application) command() *cli.Command {
 		},
 		Commands: []*cli.Command{
 			a.serviceCmd(),
-			a.messageHandlerCmd(),
 		},
 	}
 }

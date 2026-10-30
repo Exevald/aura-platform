@@ -19,6 +19,6 @@ type RepositoryProvider struct {
 	client mysql.ClientContext
 }
 
-func (p *RepositoryProvider) Echo(ctx context.Context) domain.EchoRepository {
-	return repository.NewEchoRepository(ctx, p.client)
+func (p *RepositoryProvider) Audit(ctx context.Context) domain.AuditRepository {
+	return repository.NewAuditRepository(ctx, p.client)
 }

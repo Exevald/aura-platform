@@ -125,10 +125,6 @@ func (e *environment) prepare(ctx context.Context) error {
 	e.conf.Relay.Interval = 50 * time.Millisecond
 	e.conf.Relay.PublishTimeout = time.Second
 
-	_, err = e.startApplication(ctx, "message-handler")
-	if err != nil {
-		return err
-	}
 	service, err := e.startApplication(ctx, "service")
 	if err != nil {
 		return err
@@ -185,7 +181,6 @@ func (e *environment) startApplication(ctx context.Context, command string) (tes
 			prefix + "MYSQL_USER":            e.conf.MySQL.User,
 			prefix + "MYSQL_PASSWORD":        e.conf.MySQL.Password,
 			prefix + "AMQP_URL":              "amqp://integration:integration-password@rabbitmq:5672/",
-			prefix + "AMQP_QUEUE":            e.conf.AMQP.Queue,
 			prefix + "HTTP_ADDRESS":          ":8082",
 			prefix + "GRPC_ADDRESS":          ":8081",
 			prefix + "APP_GRACE_TIMEOUT":     e.conf.App.GraceTimeout.String(),

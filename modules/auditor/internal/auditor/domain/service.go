@@ -1,47 +1,46 @@
 package domain
 
 import (
+	"errors"
+	"time"
 	"uuid"
-
-	"github.com/distributed-programming-2026/lib/event"
-
-	auditorevents "auditor/api/events"
 )
 
-type EchoService struct {
-	repo       EchoRepository
-	dispatcher event.Dispatcher
+type AuditService struct {
+	repo AuditRepository
 }
 
-func NewEchoService(repo EchoRepository, dispatcher event.Dispatcher) *EchoService {
-	return &EchoService{
-		repo:       repo,
-		dispatcher: dispatcher,
+func NewAuditService(repo AuditRepository) *AuditService {
+	return &AuditService{
+		repo: repo,
 	}
 }
 
-func (s *EchoService) Echo(body string) (uuid.UUID, error) {
-	id, err := s.repo.NextID()
+func (s *AuditService) Record(record AuditRecord) (uuid.UUID, error) {
+	if record.EventID == "" || record.EventType == "" || record.Producer == "" {
+		return uuid.Nil(), ErrInvalidAuditRecord
+	}
+	existing, err := s.repo.FindByEventID(record.EventID)
+	if err == nil {
+		return existing.ID, nil
+	}
+	if !errors.Is(err, ErrAuditRecordNotFound) {
+		return uuid.Nil(), err
+	}
+	record.ID, err = s.repo.NextID()
 	if err != nil {
 		return uuid.Nil(), err
 	}
-
-	e := Echo{
-		ID:   id,
-		Body: body,
+	record.ReceivedAt = time.Now().UTC()
+	if record.OccurredAt.IsZero() {
+		record.OccurredAt = record.ReceivedAt
 	}
-
-	err = s.repo.Store(e)
-	if err != nil {
+	if err = s.repo.Store(record); err != nil {
 		return uuid.Nil(), err
 	}
+	return record.ID, nil
+}
 
-	err = s.dispatcher.Dispatch(&auditorevents.Echo{
-		ID:   e.ID.String(),
-		Body: e.Body,
-	})
-	if err != nil {
-		return uuid.Nil(), err
-	}
-	return id, nil
+func (s *AuditService) Find(id uuid.UUID) (AuditRecord, error) {
+	return s.repo.Find(id)
 }

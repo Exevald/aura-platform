@@ -2,82 +2,61 @@ package integration_tests
 
 import (
 	"context"
-	"io"
-	"log/slog"
-	"net/http"
-	"strings"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/distributed-programming-2026/go-sdk/pkg/amqp"
-	eventamqp "github.com/distributed-programming-2026/go-sdk/pkg/event/amqp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
-	domainevent "github.com/distributed-programming-2026/lib/event"
-
-	internalapi "session/api/server/internalapi"
-	publicapi "session/api/server/publicapi"
+	sessioninternalapi "session/api/server/internalapi"
 )
 
-func TestHTTPAndGRPCDelivery(t *testing.T) {
-	client, err := publicapi.NewClientWithResponses("http://" + testEnv.conf.HTTP.Address)
+func TestSessionLifecycle(t *testing.T) {
+	connection, err := grpc.NewClient(
+		testEnv.conf.GRPC.Address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
-
-	response, err := client.EchoWithResponse(t.Context(), publicapi.EchoJSONRequestBody{
-		Body: "HTTP привет",
-	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, response.StatusCode())
-	require.NotNil(t, response.JSON200)
-	envelope := checkEcho(t, response.JSON200.OperationID, "HTTP привет")
-	waitHandled(t, envelope, 1)
-
-	connection, err := grpc.NewClient(testEnv.conf.GRPC.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
-	defer connection.Close()
-
+	t.Cleanup(func() { require.NoError(t, connection.Close()) })
+	client := sessioninternalapi.NewSessionServiceClient(connection)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
+	userID := uuid.New()
 
-	grpcResponse, err := internalapi.NewSessionServiceClient(connection).Echo(ctx, &internalapi.EchoRequest{
-		Body: "gRPC echo",
-	}, grpc.WaitForReady(true))
+	regular, err := client.CreateSession(ctx, &sessioninternalapi.CreateSessionRequest{
+		UserId: userID.String(),
+	})
 	require.NoError(t, err)
-	waitHandled(t, checkEcho(t, grpcResponse.OperationID, "gRPC echo"), 1)
+	require.WithinDuration(t, time.Now().Add(8*time.Hour), regular.GetExpiresAt().AsTime(), time.Minute)
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	duplicateConnection := amqp.NewConnection(moduleID, amqp.ConnectionConfig{
-		URL:            testEnv.conf.AMQP.URL,
-		ConnectTimeout: time.Second,
-	}, logger)
-	defer func() {
-		require.NoError(t, duplicateConnection.Stop())
-	}()
-
-	dispatcher, err := eventamqp.NewDispatcher(duplicateConnection.Producer(domainevent.DomainExchange(), nil, nil))
+	persistent, err := client.CreateSession(ctx, &sessioninternalapi.CreateSessionRequest{
+		UserId: userID.String(), RememberMe: true,
+	})
 	require.NoError(t, err)
-	require.NoError(t, duplicateConnection.Start())
-	require.NoError(t, dispatcher.Dispatch(t.Context(), envelope))
-	waitHandled(t, envelope, 2)
-	require.Equal(t, 1, testEnv.logs.count("echo received", "echo_id", response.JSON200.OperationID))
-}
+	require.WithinDuration(t, time.Now().Add(30*24*time.Hour), persistent.GetExpiresAt().AsTime(), time.Minute)
 
-func TestInvalidHTTPRequests(t *testing.T) {
-	client := &http.Client{
-		Timeout: time.Second,
-	}
-	for _, body := range []string{`{}`, `{"body":42}`, `null`, `{"body":`} {
-		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
-			"http://"+testEnv.conf.HTTP.Address+"/api/public/v1/echo", strings.NewReader(body),
-		)
-		require.NoError(t, err)
-		request.Header.Set("Content-Type", "application/json")
+	validated, err := client.ValidateSession(
+		ctx,
+		&sessioninternalapi.ValidateSessionRequest{SessionId: persistent.GetSessionId()},
+	)
+	require.NoError(t, err)
+	require.Equal(t, userID.String(), validated.GetUserId())
+	require.True(t, validated.GetPersistent())
 
-		response, err := client.Do(request)
-		require.NoError(t, err)
-		require.NoError(t, response.Body.Close())
-		require.Equal(t, http.StatusBadRequest, response.StatusCode)
-	}
+	_, err = client.RevokeUserSessions(ctx, &sessioninternalapi.RevokeUserSessionsRequest{
+		UserId: userID.String(),
+	})
+	require.NoError(t, err)
+	_, err = client.ValidateSession(ctx, &sessioninternalapi.ValidateSessionRequest{
+		SessionId: regular.GetSessionId(),
+	})
+	require.Equal(t, codes.Unauthenticated, status.Code(err))
+	_, err = client.ValidateSession(ctx, &sessioninternalapi.ValidateSessionRequest{
+		SessionId: persistent.GetSessionId(),
+	})
+	require.Equal(t, codes.Unauthenticated, status.Code(err))
 }

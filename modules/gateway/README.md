@@ -1,135 +1,67 @@
-# Gateway service
+# Gateway
 
-Рабочий пример использования go-sdk и исходник для генератора новых модулей.
-
-## Сценарий
-
-```text
-HTTP / gRPC → app → unit of work → echo + outbox (одна MySQL-транзакция)
-                                             ↓
-                                      relay → RabbitMQ
-                                             ↓
-                              message-handler → inbox → лог
-```
-
-HTTP: `POST /api/public/v1/echo` с JSON `{"body":"hello"}`. Ответ:
-`{"operationID":"<uuid>"}`. Пустая строка допустима; поле `body` обязательно.
-
-gRPC: `gatewayInternalAPI.GatewayService/Echo`, запрос `{"Body":"hello"}`,
-ответ с `OperationID`. Сервер поддерживает reflection:
-
-```sh
-grpcurl -plaintext -d '{"Body":"hello"}' localhost:8081 \
-  gatewayInternalAPI.GatewayService/Echo
-```
-
-Событие `gatewayEvents.Echo` содержит ID echo и исходную строку. SDK добавляет
-envelope с event ID, producer, type, временем и correlation ID. Общий exchange
-`domain-event` находится в `lib/event`; routing key модуля — `gateway.Echo`.
-
-## Структура
-
-- `cmd`: конфигурация, команды запуска и файлы сборки зависимостей по подсистемам: MySQL, миграции, AMQP, события и серверы.
-- `internal/gateway/app`: транзакционная граница через SDK `UnitOfWorkWithRepositoryProvider`.
-- `internal/gateway/domain`: echo-модель, бизнес-операция, интерфейс репозитория и payload события; используется нативный пакет `uuid` Go 1.27.
-- `internal/gateway/infra/mysql`: repository provider; `repository` содержит реализацию echo-репозитория, `migrations` — миграции модуля.
-- `internal/gateway/infra/handlers`: HTTP, gRPC и события.
-- `internal/integration-tests`: инфраструктура, контейнеры и интеграционные проверки.
-- `api`: protobuf/OpenAPI-контракты; generated Go-код исключён из Git.
-
-Repository provider хранит транзакционный клиент и выдаёт репозиторий с контекстом
-операции. `app` использует `ExecuteWithRepositoryProvider`; SQL-клиент в него не
-передаётся. Outbox и репозиторий используют один context и один экземпляр UOW.
+HTTP gateway на Go: загрузка и подготовка YAML-конфигурации (control plane), маршрутизация, reverse proxy и цепочки внешних интерцепторов. Envoy, xDS, Lua, domain-слой, БД и брокер не используются.
 
 ## Запуск
 
-Из корня репозитория:
+Инструменты и задачи настроены через `mise`, как в `core` и шаблоне модулей:
 
 ```sh
-mise run local-up
+cd gateway
+mise install
+mise run generate
+mise exec -- go run ./cmd --config config check-config
+mise exec -- go run ./cmd --config config service
 ```
 
-Корневой mise автоматически подключает модульный `compose.yaml`, собирает бинарник
-и поднимает сервис и consumer в контейнерах.
+Рабочий минимальный пример находится в `config/`. `/gateway/status` возвращает локальный ответ, остальные пути проксируются в `localhost:8080`. Upstream можно изменить переменной `GATEWAY_UPSTREAM`. Примеры цепочки session → authz → error-pages находятся в `docs/configuration/examples/`; для их валидации требуется `AUTHZ_API_KEY`, для выполнения — соответствующие внешние сервисы.
 
-Бинарник поддерживает `service` (по умолчанию) и `message-handler`.
-`service` запускает HTTP, gRPC и relay. `message-handler` запускает consumer
-и HTTP `/healthz`. Health endpoint отвечает 204 и проверяет liveness.
+Переменные процесса:
 
-## Конфигурация
+| Переменная | Назначение |
+|------------|------------|
+| `GATEWAY_CONFIG` | YAML-файл или каталог; default `config` |
+| `GATEWAY_HTTP_ADDRESS` | адрес proxy listener; default определяется `port` |
+| `GATEWAY_HEALTH_ADDRESS` | адрес health listener; default определяется `healthzPort` |
 
-| Переменная | Значение по умолчанию |
-| --- | --- |
-| `GATEWAY_APP_DEBUG` | `false` |
-| `GATEWAY_APP_GRACE_TIMEOUT` | `30s` |
-| `GATEWAY_HTTP_ADDRESS` | `:8082` |
-| `GATEWAY_GRPC_ADDRESS` | `:8081` |
-| `GATEWAY_MYSQL_ADDRESS` | `localhost:3306` |
-| `GATEWAY_MYSQL_DATABASE` | `gateway` |
-| `GATEWAY_MYSQL_USER` | `gateway` |
-| `GATEWAY_MYSQL_PASSWORD` | `gateway` |
-| `GATEWAY_MYSQL_MAX_CONNECTIONS` | `10` |
-| `GATEWAY_MYSQL_CONNECTION_MAX_LIFETIME` | `30m` |
-| `GATEWAY_MYSQL_CONNECTION_MAX_IDLE_TIME` | `5m` |
-| `GATEWAY_MYSQL_CONNECT_TIMEOUT` | `5s` |
-| `GATEWAY_MYSQL_READ_TIMEOUT` | `10s` |
-| `GATEWAY_MYSQL_WRITE_TIMEOUT` | `10s` |
-| `GATEWAY_AMQP_URL` | `amqp://local:local@localhost:5672/` |
-| `GATEWAY_AMQP_QUEUE` | `gateway.echo` |
-| `GATEWAY_AMQP_CONNECT_TIMEOUT` | `5s` |
-| `GATEWAY_AMQP_PREFETCH_COUNT` | `10` |
-| `GATEWAY_RELAY_INTERVAL` | `1s` |
-| `GATEWAY_RELAY_BATCH_SIZE` | `100` |
-| `GATEWAY_RELAY_PUBLISH_TIMEOUT` | `10s` |
-| `GATEWAY_RELAY_LOCK_TIMEOUT` | `1s` |
+CLI использует `urfave/cli/v3`, как модули core: `service` — команда по умолчанию, `check-config` проверяет конфигурацию. Флаг `--check-config` также поддерживается.
 
-DSN формируется рядом с connector через `mysqldriver.Config.FormatDSN()`;
-`parseTime` и `utf8mb4` включаются там же. `--debug` также включает подробные логи.
-Новые модули используют свой env-префикс.
-
-## Миграции и сборка
+Endpoint на health listener: `/healthz`, `/readyz`. SIGINT/SIGTERM выключают readiness и дают текущим запросам до 30 секунд на завершение. При buffered request body чтение ограничено 60 секундами; streaming passthrough этого ограничения не имеет.
 
 ```sh
-mise run //modules/gateway:generate-migration "Create a new table"
-mise run //modules/gateway:build
+mise run build
+# Linux-бинарник: dist/gateway
+# Для запуска на macOS используйте go run или go build ./cmd.
+docker compose up --build
 ```
 
-Генератор создаёт и регистрирует новую миграцию. Реализуйте `Up`: начальная
-заглушка возвращает ошибку. Обе команды сервиса применяют все таргеты миграций:
-модуль, outbox и inbox.
+## Контракт
 
-`build` генерирует контракты и локально собирает Linux-бинарник `dist/gateway`.
-Dockerfile только копирует его в образ. Для нативного запуска используйте задачу
-`run`, для выбора архитектуры Linux-сборки — `GOARCH`.
+- [Конфигурация и порядок merge](docs/configuration/README.md).
+- [Маршруты и цепочки](docs/configuration/servicedefinition.md).
+- [API внешних интерцепторов](docs/api/README.md).
 
-## Гарантии
+Маршруты более высокого веса проверяются первыми; внутри документа порядок сохраняется. Rewrite/internal redirect предшествуют request-интерцепторам. Каждый следующий интерцептор видит уже применённые mutations предыдущего. `set` заменяет все прежние значения заголовка, `append` выполняется явно. После немедленного ответа цепочки прекращаются и upstream не вызывается, если запрос ещё не отправлен.
 
-Успех API означает commit echo и outbox. Ошибка внутри транзакции откатывает обе
-записи. Повторный API-запрос создаёт новый echo.
+Транспорты интерцепторов — gRPC и REST. Контракты в `docs/api` являются источником генерации Go-клиентов и gRPC server API в `api/client`. Поддерживаются request/response headers, полные buffered bodies и trailers. Buffered bodies ограничены размером (default 1 MiB, максимум настройки 32 MiB); REST использует base64. Streaming-body modification пока не поддерживается. Без body processing запросы и ответы передаются потоком, включая SSE, HTTP/2 и gRPC с trailers. Middleware специфики session, CSRF, authorization, maintenance, CSP и error-pages находится во внешних сервисах.
 
-Оба процесса объявляют durable-очередь. Relay использует publisher confirms и
-повторяет неудавшиеся публикации. API сохраняет операции при потере RabbitMQ
-после запуска; backlog отправляется после восстановления соединения. Ошибка
-подключения при первоначальном запуске останавливает процесс.
+Локально реализованы header matching, allowedMethods, rewrite, internal redirect, directResponse, host rewriting, динамические addHeaders, Basic Auth (htpasswd SHA/bcrypt), env/secret substitutions и таймауты. `timeout: 0s` и `idleTimeout: 0s` выключают соответствующий таймер. Idle timeout измеряет отсутствие данных от upstream после отправки запроса, а не срок свободного соединения в пуле.
 
-Доставка at-least-once. Inbox подавляет повторную обработку зафиксированных
-`(consumer, event_id)`. Логирование не атомарно с commit inbox: при сбое возможен
-повторный лог. Ошибки consumer и невалидные события попадают в `<queue>.dead`
-через общий exchange `domain-event.dead`. Автоматический retry consumer не включён.
-
-HTTP и gRPC принудительно закрываются после grace timeout и возвращают ошибку,
-для которой `errors.Is(err, context.DeadlineExceeded)` истинно.
-Очистка outbox/inbox через SDK `Cleanup` в пример не входит.
+`gatewayHealthHost` сохранён как необязательный дополнительный health listener (default 8082, `0` выключает); минимальный пример его выключает. Управляющий API на `gatewayPort` не определён: ненулевое значение отклоняется при валидации. Hot reload и `dynamicTarget` не реализованы.
 
 ## Проверки
 
 ```sh
-mise run //modules/gateway:all
-mise run //modules/gateway:integration-tests
+mise run all
+# Отдельно:
+mise run test
+mise run integration-tests
+mise run lint
+mise run coverage # dist/coverage.out и dist/coverage.html
 ```
 
-Интеграционные тесты проверяют HTTP и gRPC API, запись события в outbox,
-обработку через inbox, повторную доставку и некорректные HTTP-запросы.
-Задача mise собирает Linux-бинарник и Docker-образ. Testcontainers запускает
-сервис и consumer из этого образа вместе с MySQL и RabbitMQ в отдельной сети.
-Тестовый MySQL-пароль содержит специальные символы для проверки DSN.
+Интеграционные тесты открывают реальные локальные TCP-порты для gateway, HTTP/gRPC backend и REST/gRPC интерцепторов. Docker не требуется. Проверяются фактические запросы upstream и ответы клиенту: маршруты/merge, query и бинарное тело, session → authz, SetOrReplaceHeaders, ранний отказ, модификации headers/body/trailers, внешние error-pages, лимиты, ошибки/таймауты, отмена, SSE, gRPC unary/streaming и статусы/trailers. Дополнительно запускается собранный executable с YAML; проверяются readiness, остановка по сигналу и завершение текущего запроса при shutdown. Интеграционная задача выполняется с `-race`.
+
+Полная [матрица проверяемого поведения](docs/testing.md) связывает возможности конфигурации и API с тестами. Тесты используют `testify/require`, `testify/assert` и `testify/suite`. В обработчиках локальных серверов используются неблокирующие assertions; `require` выполняется в goroutine теста. Задача coverage измеряет app/config/infra, исключая сгенерированные клиенты; CLI проверяется отдельной suite и запуском executable.
+
+Реализация разделена по этапам: `app` — выбор маршрута, request/response processing, цепочка и валидация mutations; `config` — чтение документов, merge, подстановки и компиляция правил; `infra` — транспорты, таймер активности и lifecycle. Файлы API-клиентов генерируются из контрактов и вручную не разбиваются.

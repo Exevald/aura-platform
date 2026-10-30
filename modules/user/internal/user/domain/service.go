@@ -9,14 +9,11 @@ import (
 	userevents "user/api/events"
 )
 
-type EchoService struct {
-	repo       EchoRepository
-	dispatcher event.Dispatcher
-}
-
 type UserService interface {
-	CreateUser(login, firstName, lastName, email string) (uuid.UUID, error)
-	UpdateUser(id uuid.UUID, login, firstName, lastName, email string) error
+	CreateUser(displayName, firstName, lastName, email string) (uuid.UUID, error)
+	GetUser(id uuid.UUID) (User, error)
+	FindUserByEmail(email string) (User, error)
+	UpdateUser(id uuid.UUID, displayName, firstName, lastName, email string) error
 	RemoveUser(id uuid.UUID) error
 }
 
@@ -35,18 +32,26 @@ type userService struct {
 	dispatcher event.Dispatcher
 }
 
-func (u *userService) CreateUser(login, firstName, lastName, email string) (uuid.UUID, error) {
+func (u *userService) CreateUser(displayName, firstName, lastName, email string) (uuid.UUID, error) {
+	if displayName == "" || firstName == "" || lastName == "" || email == "" {
+		return uuid.Nil(), ErrInvalidUser
+	}
+	if _, err := u.repo.FindByEmail(email); err == nil {
+		return uuid.Nil(), ErrEmailTaken
+	} else if !errors.Is(err, ErrUserNotFound) {
+		return uuid.Nil(), err
+	}
 	id, err := u.repo.NextID()
 	if err != nil {
 		return uuid.Nil(), err
 	}
 
 	user := User{
-		ID:        id,
-		Login:     login,
-		FirstName: firstName,
-		LastName:  lastName,
-		Email:     email,
+		ID:          id,
+		DisplayName: displayName,
+		FirstName:   firstName,
+		LastName:    lastName,
+		Email:       email,
 	}
 	err = u.repo.Store(user)
 	if err != nil {
@@ -54,21 +59,47 @@ func (u *userService) CreateUser(login, firstName, lastName, email string) (uuid
 	}
 
 	err = u.dispatcher.Dispatch(&userevents.UserCreated{
-		ID:    user.ID.String(),
-		Login: login,
+		Id:          user.ID.String(),
+		DisplayName: displayName,
 	})
+	if err != nil {
+		return uuid.Nil(), err
+	}
 
 	return user.ID, nil
 }
 
-func (u *userService) UpdateUser(id uuid.UUID, login, firstName, lastName, email string) error {
+func (u *userService) FindUserByEmail(email string) (User, error) {
+	if email == "" {
+		return User{}, ErrInvalidUser
+	}
+	return u.repo.FindByEmail(email)
+}
+
+func (u *userService) GetUser(id uuid.UUID) (User, error) {
+	if id == uuid.Nil() {
+		return User{}, ErrInvalidUser
+	}
+
+	return u.repo.Find(id)
+}
+
+func (u *userService) UpdateUser(id uuid.UUID, displayName, firstName, lastName, email string) error {
+	if id == uuid.Nil() || displayName == "" || firstName == "" || lastName == "" || email == "" {
+		return ErrInvalidUser
+	}
 	user, err := u.repo.Find(id)
 	if err != nil {
 		return err
 	}
+	if existing, findErr := u.repo.FindByEmail(email); findErr == nil && existing.ID != id {
+		return ErrEmailTaken
+	} else if findErr != nil && !errors.Is(findErr, ErrUserNotFound) {
+		return findErr
+	}
 
-	if user.Login != login {
-		user.Login = login
+	if user.DisplayName != displayName {
+		user.DisplayName = displayName
 	}
 	if user.FirstName != firstName {
 		user.FirstName = firstName
@@ -86,8 +117,8 @@ func (u *userService) UpdateUser(id uuid.UUID, login, firstName, lastName, email
 	}
 
 	err = u.dispatcher.Dispatch(&userevents.UserUpdated{
-		ID:    id.String(),
-		Login: login,
+		Id:          id.String(),
+		DisplayName: displayName,
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -97,6 +128,9 @@ func (u *userService) UpdateUser(id uuid.UUID, login, firstName, lastName, email
 }
 
 func (u *userService) RemoveUser(id uuid.UUID) error {
+	if id == uuid.Nil() {
+		return ErrInvalidUser
+	}
 	_, err := u.repo.Find(id)
 	if err != nil {
 		return err
@@ -107,43 +141,10 @@ func (u *userService) RemoveUser(id uuid.UUID) error {
 		return err
 	}
 
-	err = u.dispatcher.Dispatch(&userevents.UserRemoved{ID: id.String()})
+	err = u.dispatcher.Dispatch(&userevents.UserRemoved{Id: id.String()})
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func NewEchoService(repo EchoRepository, dispatcher event.Dispatcher) *EchoService {
-	return &EchoService{
-		repo:       repo,
-		dispatcher: dispatcher,
-	}
-}
-
-func (s *EchoService) Echo(body string) (uuid.UUID, error) {
-	id, err := s.repo.NextID()
-	if err != nil {
-		return uuid.Nil(), err
-	}
-
-	e := Echo{
-		ID:   id,
-		Body: body,
-	}
-
-	err = s.repo.Store(e)
-	if err != nil {
-		return uuid.Nil(), err
-	}
-
-	err = s.dispatcher.Dispatch(&userevents.Echo{
-		ID:   e.ID.String(),
-		Body: e.Body,
-	})
-	if err != nil {
-		return uuid.Nil(), err
-	}
-	return id, nil
 }

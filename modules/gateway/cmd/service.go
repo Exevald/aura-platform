@@ -4,69 +4,45 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
+	"os"
 
-	"github.com/urfave/cli/v3"
-	"golang.org/x/sync/errgroup"
-
-	"gateway/internal/gateway/app"
-	"gateway/internal/gateway/config"
-	eventinfra "gateway/internal/gateway/infra/event"
+	"github.com/distributed-programming-2026/gateway/internal/gateway/config"
+	"github.com/distributed-programming-2026/gateway/internal/gateway/infra/server"
 )
 
-func (a *application) serviceCmd() *cli.Command {
-	return &cli.Command{
-		Name: "service",
-		Action: func(ctx context.Context, _ *cli.Command) error {
-			return service(ctx, a.logger, a.conf)
-		},
+func serve(ctx context.Context, c *config.Config) (result error) {
+	runtime, err := server.New(c)
+	if err != nil {
+		return err
 	}
+	defer func() { result = errors.Join(result, runtime.Close()) }()
+	listener, err := net.Listen("tcp", envDefault("GATEWAY_HTTP_ADDRESS", config.Address(c.Gateway.Port)))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = listener.Close() }()
+	health, err := net.Listen("tcp", envDefault("GATEWAY_HEALTH_ADDRESS", config.Address(c.Gateway.HealthzPort)))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = health.Close() }()
+	healthListeners := []net.Listener{health}
+	if c.Gateway.GatewayHealthHost != 0 && c.Gateway.GatewayHealthHost != c.Gateway.HealthzPort {
+		l, err := net.Listen("tcp", config.Address(c.Gateway.GatewayHealthHost))
+		if err != nil {
+			return err
+		}
+		defer func() { _ = l.Close() }()
+		healthListeners = append(healthListeners, l)
+	}
+	slog.Info("gateway listening", "proxy", listener.Addr(), "health", health.Addr())
+	return runtime.Serve(ctx, listener, healthListeners...)
 }
 
-func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err error) {
-	db, err := openDatabase(ctx, logger, conf)
-	if err != nil {
-		return err
+func envDefault(name, fallback string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
 	}
-	defer func() {
-		err = errors.Join(err, db.connector.Close())
-	}()
-
-	connection := newConnection(logger, conf)
-	defer func() {
-		err = errors.Join(err, connection.Stop())
-	}()
-
-	dispatcher, relay, err := newDispatcher(logger, conf, db, connection)
-	if err != nil {
-		return err
-	}
-
-	err = connection.Start()
-	if err != nil {
-		return err
-	}
-
-	dispatcherFactory := eventinfra.NewDispatcherFactory(appID, dispatcher)
-	svc := app.NewService(db.unit, dispatcherFactory)
-	httpServer, err := newHTTPServer(logger, conf, svc)
-	if err != nil {
-		return err
-	}
-
-	grpcServer, err := newGRPCServer(logger, conf, svc)
-	if err != nil {
-		return err
-	}
-
-	errGroup, egCtx := errgroup.WithContext(ctx)
-	errGroup.Go(func() error {
-		return httpServer.Serve(egCtx)
-	})
-	errGroup.Go(func() error {
-		return grpcServer.Serve(egCtx)
-	})
-	errGroup.Go(func() error {
-		return runRelay(egCtx, logger, relay, conf.Relay)
-	})
-	return errGroup.Wait()
+	return fallback
 }

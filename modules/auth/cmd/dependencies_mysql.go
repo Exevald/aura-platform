@@ -10,12 +10,12 @@ import (
 	mysqldriver "github.com/go-sql-driver/mysql"
 
 	"auth/internal/auth/config"
-	echomysql "auth/internal/auth/infra/mysql"
+	authmysql "auth/internal/auth/infra/mysql"
 )
 
 type database struct {
 	connector mysql.Connector
-	unit      uow.UnitOfWorkWithRepositoryProvider[*echomysql.RepositoryProvider]
+	unit      uow.UnitOfWorkWithRepositoryProvider[*authmysql.RepositoryProvider]
 }
 
 func openDatabase(ctx context.Context, logger *slog.Logger, conf config.Env) (_ *database, err error) {
@@ -54,7 +54,7 @@ func openDatabase(ctx context.Context, logger *slog.Logger, conf config.Env) (_ 
 		return nil, err
 	}
 
-	unit := uow.NewUnitOfWork(mysql.NewConnectionPool(client), echomysql.NewRepositoryProvider)
+	unit := uow.NewUnitOfWork(mysql.NewConnectionPool(client), authmysql.NewRepositoryProvider)
 	return &database{
 		connector: connector,
 		unit:      unit,

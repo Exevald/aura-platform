@@ -13,11 +13,13 @@ sequenceDiagram
     participant SessionDB as sessionDB
     participant User as user
     participant UserDB as userDB
+    participant Access as access
+    participant AccessDB as accessDB
     participant Broker
     participant Auditor as auditor
     participant AuditDB as auditDB
     Client ->> Frontend: Register
-    Frontend ->> Gateway: /register
+    Frontend ->> Gateway: /register(login, password, profile, rememberMe)
     Note over Gateway: Создать requestID
     Gateway ->> Auth: Register(login, password, profile)
     Auth ->> AuthDB: FindCredential(login)
@@ -33,10 +35,14 @@ sequenceDiagram
         User ->> UserDB: INSERT user
         UserDB -->> User: OK
         User -->> Auth: userID
+        Auth ->> Access: Grant(editor, userID)
+        Access ->> AccessDB: UPSERT module_access
+        AccessDB -->> Access: OK
+        Access -->> Auth: Granted
         Auth ->> AuthDB: INSERT credential
         AuthDB -->> Auth: OK
         alt Session доступен
-            Auth ->> Session: CreateSession(user_id)
+            Auth ->> Session: CreateSession(user_id, rememberMe)
             Session ->> SessionDB: INSERT session
             SessionDB -->> Session: OK
             Session -->> Broker: SessionCreated
@@ -76,7 +82,7 @@ sequenceDiagram
     participant Auditor as auditor
     participant AuditDB as auditDB
     Client ->> Frontend: Login(login, password)
-    Frontend ->> Gateway: /login
+    Frontend ->> Gateway: /login(login, password, rememberMe)
     Note over Gateway: Создать request_id
     Gateway ->> Session: CheckSession(session_id)
 
@@ -104,7 +110,7 @@ sequenceDiagram
                 Frontend -->> Client: Неверный login или password
 
             else Password верный
-                Auth ->> Session: CreateSession(user_id)
+                Auth ->> Session: CreateSession(user_id, rememberMe)
                 Session ->> SessionDB: INSERT session
                 SessionDB -->> Session: OK
                 Session -->> Auth: session_id, expires_at

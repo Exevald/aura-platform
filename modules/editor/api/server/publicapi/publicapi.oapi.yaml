@@ -1,0 +1,137 @@
+openapi: 3.0.0
+info: { version: 1.0.0, title: Editor public API, x-api-identifier: editorpublicapi }
+paths:
+  /api/editor/v1/documents:
+    get:
+      operationId: listDocuments
+      parameters: [ { $ref: '#/components/parameters/authUser' } ]
+      responses:
+        '200': {
+          description: Documents,
+          content: {
+            application/json: {
+              schema: {
+                type: array,
+                items: {
+                  $ref: '#/components/schemas/document'
+                }
+              }
+            }
+          }
+        }
+        '503': {
+          $ref: '#/components/responses/unavailable'
+        }
+    post:
+      operationId: createDocument
+      parameters: [ { $ref: '#/components/parameters/authUser' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/documentInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/document' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/editor/v1/documents/{documentID}:
+    parameters:
+      - { $ref: '#/components/parameters/authUser' }
+      - { $ref: '#/components/parameters/documentID' }
+    get:
+      operationId: getDocument
+      responses:
+        '200': { description: Document, content: { application/json: { schema: { $ref: '#/components/schemas/document' } } } }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+    put:
+      operationId: updateDocument
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/updateInput' } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/document' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '409': { $ref: '#/components/responses/conflict' }
+        '503': { $ref: '#/components/responses/unavailable' }
+    delete:
+      operationId: deleteDocument
+      responses:
+        '204': { description: Deleted }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/editor/v1/documents/{documentID}/permissions:
+    parameters:
+      - { $ref: '#/components/parameters/authUser' }
+      - { $ref: '#/components/parameters/documentID' }
+    get:
+      operationId: listPermissions
+      responses:
+        '200': { description: Permissions, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/permission' } } } } }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '503': { $ref: '#/components/responses/unavailable' }
+    put:
+      operationId: grantPermission
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/grantInput' } } } }
+      responses:
+        '204': { description: Granted }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/editor/v1/documents/{documentID}/permissions/{userID}:
+    delete:
+      operationId: revokePermission
+      parameters:
+        - { $ref: '#/components/parameters/authUser' }
+        - { $ref: '#/components/parameters/documentID' }
+        - { name: userID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Revoked }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '503': { $ref: '#/components/responses/unavailable' }
+components:
+  parameters:
+    authUser: { name: X-Auth-User, in: header, required: true, schema: { type: string, format: uuid } }
+    documentID: { name: documentID, in: path, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    documentInput:
+      type: object
+      required: [ title, content ]
+      properties: { title: { type: string, minLength: 1, maxLength: 255 }, content: { type: string, maxLength: 1048576 } }
+    updateInput:
+      allOf:
+        - { $ref: '#/components/schemas/documentInput' }
+        - type: object
+          required: [ version ]
+          properties: { version: { type: integer, format: int64, minimum: 1 } }
+    document:
+      allOf:
+        - { $ref: '#/components/schemas/updateInput' }
+        - type: object
+          required: [ id, ownerUserID, role, createdAt, updatedAt ]
+          properties:
+            id: { type: string, format: uuid }
+            ownerUserID: { type: string, format: uuid }
+            role: { type: string, enum: [ owner, editor, viewer ] }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    grantInput:
+      type: object
+      required: [ email, role ]
+      properties: { email: { type: string, format: email }, role: { type: string, enum: [ editor, viewer ] } }
+    permission:
+      type: object
+      required: [ userID, email, displayName, role, updatedAt ]
+      properties:
+        userID: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        role: { type: string, enum: [ editor, viewer ] }
+        updatedAt: { type: string, format: date-time }
+    error: { type: object, required: [ message ], properties: { message: { type: string } } }
+  responses:
+    badRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    forbidden: { description: Permission denied, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    notFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    conflict: { description: Version conflict, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    unavailable: { description: Service unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }

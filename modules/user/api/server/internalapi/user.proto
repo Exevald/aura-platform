@@ -1,0 +1,40 @@
+syntax = "proto3";
+package userInternalAPI;
+
+option go_package = "/.;userinternalapi";
+
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc FindUserByEmail(FindUserByEmailRequest) returns (GetUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+}
+
+message UserFields {
+  string display_name = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+}
+
+message CreateUserRequest { UserFields fields = 1; }
+message CreateUserResponse { string user_id = 1; }
+
+message GetUserRequest { string user_id = 1; }
+message GetUserResponse {
+  string user_id = 1;
+  UserFields fields = 2;
+}
+
+message FindUserByEmailRequest { string email = 1; }
+
+message UpdateUserRequest {
+  string user_id = 1;
+  UserFields fields = 2;
+}
+message UpdateUserResponse {}
+
+message DeleteUserRequest { string user_id = 1; }
+message DeleteUserResponse {}
+

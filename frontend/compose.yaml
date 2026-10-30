@@ -1,0 +1,6 @@
+services:
+  frontend:
+    image: distributed-programming-frontend:local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile

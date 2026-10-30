@@ -16,40 +16,53 @@ type DispatcherFactory interface {
 }
 
 type UserFieldsSpec struct {
-	Login     string
-	FirstName string
-	LastName  string
-	Email     string
+	DisplayName string
+	FirstName   string
+	LastName    string
+	Email       string
 }
 
 type UserService interface {
 	CreateUser(ctx context.Context, spec UserFieldsSpec) (uuid.UUID, error)
+	GetUser(ctx context.Context, id uuid.UUID) (domain.User, error)
+	FindUserByEmail(ctx context.Context, email string) (domain.User, error)
 	UpdateUser(ctx context.Context, id uuid.UUID, spec UserFieldsSpec) error
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 }
 
 func NewUserService(
-	uow uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider],
+	unitOfWork uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider],
 	dispatcherFactory DispatcherFactory,
 ) UserService {
 	return &userService{
-		uow:               uow,
+		unitOfWork:        unitOfWork,
 		dispatcherFactory: dispatcherFactory,
 	}
 }
 
 type userService struct {
-	uow               uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider]
+	unitOfWork        uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider]
 	dispatcherFactory DispatcherFactory
 }
 
+func (u *userService) FindUserByEmail(ctx context.Context, email string) (result domain.User, err error) {
+	err = u.unitOfWork.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+		result, err = domain.NewUserService(
+			provider.UserRepository(ctx),
+			u.dispatcherFactory.NewDispatcher(ctx),
+		).FindUserByEmail(email)
+		return err
+	})
+	return result, err
+}
+
 func (u *userService) CreateUser(ctx context.Context, spec UserFieldsSpec) (id uuid.UUID, err error) {
-	err = u.uow.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+	err = u.unitOfWork.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
 		domainService := domain.NewUserService(
 			provider.UserRepository(ctx),
 			u.dispatcherFactory.NewDispatcher(ctx),
 		)
-		id, err = domainService.CreateUser(spec.Login, spec.FirstName, spec.LastName, spec.Email)
+		id, err = domainService.CreateUser(spec.DisplayName, spec.FirstName, spec.LastName, spec.Email)
 		if err != nil {
 			return err
 		}
@@ -62,13 +75,25 @@ func (u *userService) CreateUser(ctx context.Context, spec UserFieldsSpec) (id u
 	return id, nil
 }
 
-func (u *userService) UpdateUser(ctx context.Context, id uuid.UUID, spec UserFieldsSpec) error {
-	err := u.uow.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+func (u *userService) GetUser(ctx context.Context, id uuid.UUID) (result domain.User, err error) {
+	err = u.unitOfWork.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
 		domainService := domain.NewUserService(
 			provider.UserRepository(ctx),
 			u.dispatcherFactory.NewDispatcher(ctx),
 		)
-		err := domainService.UpdateUser(id, spec.Login, spec.FirstName, spec.LastName, spec.Email)
+		result, err = domainService.GetUser(id)
+		return err
+	})
+	return result, err
+}
+
+func (u *userService) UpdateUser(ctx context.Context, id uuid.UUID, spec UserFieldsSpec) error {
+	err := u.unitOfWork.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+		domainService := domain.NewUserService(
+			provider.UserRepository(ctx),
+			u.dispatcherFactory.NewDispatcher(ctx),
+		)
+		err := domainService.UpdateUser(id, spec.DisplayName, spec.FirstName, spec.LastName, spec.Email)
 		if err != nil {
 			return err
 		}
@@ -82,7 +107,7 @@ func (u *userService) UpdateUser(ctx context.Context, id uuid.UUID, spec UserFie
 }
 
 func (u *userService) DeleteUser(ctx context.Context, id uuid.UUID) error {
-	err := u.uow.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+	err := u.unitOfWork.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
 		domainService := domain.NewUserService(
 			provider.UserRepository(ctx),
 			u.dispatcherFactory.NewDispatcher(ctx),
@@ -98,37 +123,4 @@ func (u *userService) DeleteUser(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	return nil
-}
-
-type Service struct {
-	unit              uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider]
-	dispatcherFactory DispatcherFactory
-}
-
-func NewService(
-	unit uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider],
-	dispatcherFactory DispatcherFactory,
-) *Service {
-	return &Service{
-		unit:              unit,
-		dispatcherFactory: dispatcherFactory,
-	}
-}
-
-func (s *Service) Echo(ctx context.Context, body string) (uuid.UUID, error) {
-	var id uuid.UUID
-	err := s.unit.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
-		svc := domain.NewEchoService(
-			provider.Echo(ctx),
-			s.dispatcherFactory.NewDispatcher(ctx),
-		)
-
-		var err error
-		id, err = svc.Echo(body)
-		return err
-	})
-	if err != nil {
-		return uuid.Nil(), err
-	}
-	return id, nil
 }

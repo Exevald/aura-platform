@@ -6,12 +6,14 @@ import (
 )
 
 type Env struct {
-	App   App   `envconfig:"app"`
-	GRPC  GRPC  `envconfig:"grpc"`
-	HTTP  HTTP  `envconfig:"http"`
-	MySQL MySQL `envconfig:"mysql"`
-	AMQP  AMQP  `envconfig:"amqp"`
-	Relay Relay `envconfig:"relay"`
+	App          App          `envconfig:"app"`
+	GRPC         GRPC         `envconfig:"grpc"`
+	HTTP         HTTP         `envconfig:"http"`
+	MySQL        MySQL        `envconfig:"mysql"`
+	AMQP         AMQP         `envconfig:"amqp"`
+	Relay        Relay        `envconfig:"relay"`
+	Dependencies Dependencies `envconfig:"dependencies"`
+	Cookie       Cookie       `envconfig:"cookie"`
 }
 
 type App struct {
@@ -42,9 +44,7 @@ type MySQL struct {
 
 type AMQP struct {
 	URL            string        `envconfig:"url" default:"amqp://local:local@localhost:5672/"`
-	Queue          string        `envconfig:"queue" default:"auth.echo"`
 	ConnectTimeout time.Duration `envconfig:"connect_timeout" default:"5s"`
-	PrefetchCount  int           `envconfig:"prefetch_count" default:"10"`
 }
 
 type Relay struct {
@@ -54,6 +54,20 @@ type Relay struct {
 	LockTimeout    time.Duration `envconfig:"lock_timeout" default:"1s"`
 }
 
+type Dependencies struct {
+	UserAddress    string        `envconfig:"user_address" default:"user:8081"`
+	SessionAddress string        `envconfig:"session_address" default:"session:8081"`
+	AccessAddress  string        `envconfig:"access_address" default:"access-service:8081"`
+	EditorModuleID string        `envconfig:"editor_module_id" default:"b8547c76-51fd-4f7c-9c68-8f30c84f61cb"`
+	Timeout        time.Duration `envconfig:"timeout" default:"5s"`
+}
+
+type Cookie struct {
+	Name   string `envconfig:"name" default:"aura_session"`
+	Domain string `envconfig:"domain"`
+	Secure bool   `envconfig:"secure" default:"true"`
+}
+
 func (c Env) Validate() error {
 	if c.App.GraceTimeout <= 0 || c.AMQP.ConnectTimeout <= 0 || c.Relay.Interval <= 0 || c.Relay.PublishTimeout <= 0 || c.Relay.LockTimeout < 0 {
 		return errors.New("timeouts and relay interval must be positive; lock timeout must not be negative")
@@ -61,10 +75,16 @@ func (c Env) Validate() error {
 	if c.MySQL.ConnectTimeout <= 0 || c.MySQL.ReadTimeout <= 0 || c.MySQL.WriteTimeout <= 0 || c.MySQL.ConnectionMaxLifeTime < 0 || c.MySQL.ConnectionMaxIdleTime < 0 {
 		return errors.New("MySQL timeouts must be positive; connection lifetimes must not be negative")
 	}
-	if c.MySQL.MaxConnections <= 0 || c.AMQP.PrefetchCount <= 0 || c.Relay.BatchSize <= 0 {
-		return errors.New("connection, prefetch and batch counts must be positive")
+	if c.MySQL.MaxConnections <= 0 || c.Relay.BatchSize <= 0 {
+		return errors.New("connection and batch counts must be positive")
 	}
-	if c.MySQL.Address == "" || c.MySQL.Database == "" || c.MySQL.User == "" || c.AMQP.URL == "" || c.AMQP.Queue == "" || c.HTTP.Address == "" || c.GRPC.Address == "" {
+	if c.Dependencies.Timeout <= 0 || c.Dependencies.UserAddress == "" || c.Dependencies.SessionAddress == "" || c.Dependencies.AccessAddress == "" || c.Dependencies.EditorModuleID == "" {
+		return errors.New("dependency configuration is invalid")
+	}
+	if c.Cookie.Name == "" {
+		return errors.New("cookie name must not be empty")
+	}
+	if c.MySQL.Address == "" || c.MySQL.Database == "" || c.MySQL.User == "" || c.AMQP.URL == "" || c.HTTP.Address == "" || c.GRPC.Address == "" {
 		return errors.New("database, broker and server configuration must not be empty")
 	}
 	return nil

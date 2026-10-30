@@ -1,0 +1,36 @@
+services:
+  editor-service:
+    image: distributed-programming-editor:local
+    build:
+      context: ./modules/editor
+      dockerfile: Dockerfile
+    environment:
+      EDITOR_MYSQL_ADDRESS: mysql:3306
+      EDITOR_AMQP_URL: amqp://local:local@rabbitmq:5672/
+      EDITOR_DEPENDENCIES_USER_ADDRESS: user-service:8081
+    ports:
+      - "${EDITOR_GRPC_PORT:-8081}:8081"
+      - "${EDITOR_HTTP_PORT:-8082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+
+  editor-message-handler:
+    image: distributed-programming-editor:local
+    command: [message-handler]
+    environment:
+      EDITOR_MYSQL_ADDRESS: mysql:3306
+      EDITOR_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${EDITOR_MESSAGE_HANDLER_PORT:-8083}:8082"
+    depends_on:
+      editor-service:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy

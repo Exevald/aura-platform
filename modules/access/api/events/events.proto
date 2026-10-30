@@ -1,0 +1,13 @@
+syntax = "proto3";
+package accessEvents;
+
+option go_package = "/.;accessevents";
+
+message ModuleAccessChanged {
+  string type = 1;
+  string id = 2;
+  string user_id = 3;
+  string module_id = 4;
+  string effect = 5;
+  int64 occurred_at_unix = 6;
+}
