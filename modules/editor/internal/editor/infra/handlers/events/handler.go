@@ -3,32 +3,51 @@ package events
 import (
 	"context"
 	"fmt"
-	"log/slog"
-
-	editorevents "editor/api/events"
+	"uuid"
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/event"
+
+	accessevents "access/api/events"
+	"editor/internal/editor/app"
 )
 
-type handler struct {
-	logger *slog.Logger
-}
+type handler struct{ service app.EditorService }
 
-func NewHandler(logger *slog.Logger) event.Handler {
-	return &handler{
-		logger: logger,
-	}
-}
+func NewHandler(service app.EditorService) event.Handler { return &handler{service: service} }
 
 func (h *handler) Handle(ctx context.Context, envelope event.Envelope) error {
-	if envelope.Type() != "DocumentChanged" {
+	switch envelope.Type() {
+	case "GroupModuleAccessGranted":
+		var value accessevents.GroupModuleAccessGranted
+		if err := envelope.UnmarshalPayload(&value); err != nil {
+			return err
+		}
+		id, err := uuid.Parse(value.ShareId)
+		if err != nil {
+			return err
+		}
+		return h.service.ActivateModuleShare(ctx, id)
+	case "GroupModuleAccessRejected":
+		var value accessevents.GroupModuleAccessRejected
+		if err := envelope.UnmarshalPayload(&value); err != nil {
+			return err
+		}
+		id, err := uuid.Parse(value.ShareId)
+		if err != nil {
+			return err
+		}
+		return h.service.RejectModuleShare(ctx, id, value.Reason)
+	case "GroupModuleAccessRevoked":
+		var value accessevents.GroupModuleAccessRevoked
+		if err := envelope.UnmarshalPayload(&value); err != nil {
+			return err
+		}
+		id, err := uuid.Parse(value.ShareId)
+		if err != nil {
+			return err
+		}
+		return h.service.CompleteModuleShareRevocation(ctx, id, value.Reason)
+	default:
 		return fmt.Errorf("unsupported event type %q", envelope.Type())
 	}
-	var changed editorevents.DocumentChanged
-	err := envelope.UnmarshalPayload(&changed)
-	if err != nil {
-		return err
-	}
-	h.logger.InfoContext(ctx, "document event received", slog.String("document_id", changed.DocumentId), slog.String("type", changed.Type))
-	return nil
 }

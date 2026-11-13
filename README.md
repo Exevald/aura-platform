@@ -1,6 +1,9 @@
 # aura-platform
 
-Платформа независимых Go-сервисов для регистрации, аутентификации, сессий и событийного аудита.
+Платформа независимых Go-сервисов для совместной работы: документы, календари,
+задачи, короткие ссылки, рабочие пространства, уведомления и аудит.
+
+Подробное описание распределённой регистрации: [двухфазный коммит](docs/two-phase-commit.md).
 
 ## Проверка и локальное окружение
 
@@ -21,7 +24,7 @@ Linux-бинарники через модульные задачи mise. Зат
 сервисы. SQL подготовки запускается при каждом старте, чтобы новые модули работали
 и с уже существующим volume MySQL.
 
-Корневой `compose.yaml` содержит только MySQL и RabbitMQ. Каждый модуль описывает
+Корневой `compose.yaml` содержит MySQL, RabbitMQ, MinIO и Mailpit. Каждый модуль описывает
 свои сервисы, очередь, настройки подключения и подготовку базы у себя.
 
 ```sh
@@ -42,13 +45,9 @@ mise run local-down
 Инфраструктурные порты переопределяются через `LOCAL_MYSQL_PORT`, `LOCAL_AMQP_PORT`
 и `LOCAL_AMQP_MANAGEMENT_PORT`.
 
-```sh
-curl -X POST localhost:8082/api/public/v1/echo \
-  -H 'Content-Type: application/json' -d '{"body":"привет"}'
-```
-
-Ответ содержит `operationID`; consumer пишет `echo received` в JSON-лог.
-Подробности контрактов, настроек и гарантий: [README шаблона](mise-tasks/generate-module.d/README.md.tpl).
+Продуктовые запросы идут через `gateway` и несут выбранный контекст
+`X-Workspace-ID`; gateway проверяет сессию, членство в workspace и доступ к модулю.
+Подробности контрактов и гарантий находятся в README соответствующих сервисов.
 
 ## Новый модуль и миграции
 
@@ -77,15 +76,21 @@ mise run //modules/billing:generate-migration "Create invoices table"
 ```sh
 mise run all
 mise run //modules/billing:integration-tests
+mise run //e2e:integration-tests
 mise run check-generator
 ```
 
 `all` выполняет генерацию, tidy, Linux-сборку, unit и интеграционные тесты, lint. Интеграционные
 тесты находятся в `internal/integration-tests` и исключены из обычной задачи `test`.
 Задача mise собирает Linux-бинарник и Docker-образ модуля. `TestMain` поднимает
-MySQL, RabbitMQ, сервис и consumer в общей изолированной Docker-сети.
+MySQL, RabbitMQ и при необходимости MinIO/Mailpit, сервис и consumer в общей изолированной Docker-сети.
 Оба приложения запускаются из собранного образа; API доступны через случайные
 порты хоста.
+
+Отдельный модуль `e2e` поднимает полный контур регистрации через общий раннер
+`go-sdk/pkg/integrationtests`. Он проверяет MySQL XA commit/rollback, потерю ответа
+после prepare, повторную доставку commit и восстановление после перезапуска registerer, отсутствие событий у отменённой
+регистрации и независимость commit от доступности session.
 
 Проверка генераторов работает во временной копии: создаёт `sample_echo`,
 проверяет миграции, объединение Compose и полный `all`, а также отказ при

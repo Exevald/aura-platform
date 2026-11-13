@@ -30,6 +30,7 @@ flowchart TB
         Auth[auth]
         Session[session]
         User[user]
+        UserGroup[usergroup]
         Workspace[workspace]
         Access[access]
         AppReg[appreg]
@@ -43,6 +44,7 @@ flowchart TB
     subgraph Modules[Modules]
         Calendar[calendar]
         Editor[editor]
+        Shortlink[shortlink]
         Planner[planner]
     end
 
@@ -52,6 +54,7 @@ flowchart TB
     Gateway -.->|proxy| Auth
     Gateway -.->|proxy| Calendar
     Gateway -.->|proxy| Editor
+    Gateway -.->|proxy| Shortlink
     Gateway -.->|proxy| Planner
     Auth --> User
     Auth --> Session
@@ -61,7 +64,10 @@ flowchart TB
     BFF --> Editor
     BFF --> Planner
     Access --> Workspace
-    Editor --> Access
+    Gateway -->|module checks| Access
+    Access -.->|group access events| Auditor
+    Access --> UserGroup
+    UserGroup -.->|membership events| Access
     Realtime --> Session
     Realtime --> Access
     Editor -.-> Realtime
@@ -223,6 +229,8 @@ flowchart TB
 **Данные**
 
 * разрешения и запреты пользователя на уровне модуля
+* ресурсные гранты пользователя с ролью и источником выдачи
+* техническое состояние обработанных групповых публикаций для идемпотентности и компенсации
 
 **Зависимости**
 
@@ -251,11 +259,12 @@ flowchart TB
 
 **Данные**
 
-* `user`
+Не владеет данными; агрегирует профиль из `user` и реестр приложений из `appreg`.
 
 **Зависимости**
 
-* нет
+* `user`
+* `appreg`
 
 **Потребители**
 
@@ -272,6 +281,58 @@ flowchart TB
 * `presenters` управляют запросами, состоянием, навигацией, ошибками и автосохранением
 
 Все запросы клиента проходят через `gateway`; браузер не обращается к микросервисам напрямую.
+
+---
+
+#### `registerer`
+
+**Ответственность**
+
+* координация регистрации пользователя и восстановление незавершённых транзакций
+* фиксация окончательного commit/abort решения для участников регистрации
+
+**Данные**
+
+* транзакции регистрации, их участники, lease и финальные решения
+
+**Зависимости**
+
+* `auth`, `user`, `workspace`, `access`, `appreg`, `session`
+
+---
+
+#### `workspace`
+
+**Ответственность**
+
+* личные и командные рабочие пространства
+* членство, роли owner/editor/viewer и приглашения
+* проверка подтверждённого workspace-контекста
+
+**Данные**
+
+* workspace, membership и pending invitation
+
+**Не ответственность**
+
+* доступ к продуктовым модулям и права на отдельные ресурсы
+
+---
+
+#### `usergroup`
+
+**Ответственность**
+
+* группы пользователей внутри workspace
+* изменение состава групп и публикация membership-событий
+
+**Данные**
+
+* группы и их участники
+
+**Не ответственность**
+
+* назначение группе продуктовых модулей — им владеет `access`
 
 ---
 
@@ -400,7 +461,7 @@ flowchart TB
 
 **Зависимости**
 
-* `identity`
+* `user`
 
 **Потребители**
 
@@ -461,7 +522,7 @@ flowchart TB
 
 **Зависимости**
 
-* `identity`
+* `user`
 * `notification`
 * `mailer`
 * `auditor`
@@ -497,10 +558,35 @@ flowchart TB
 
 **Зависимости**
 
-* `account`
+* `workspace`
 * `filestorage`
 * `access`
 * `auditor`
+
+**Потребители**
+
+* `gateway`
+
+---
+
+#### `shortlink`
+
+**Ответственность**
+
+* создание и удаление личных и командных коротких ссылок
+* публичное разрешение короткого кода в целевой URL
+
+**Данные**
+
+* код, целевой URL, владелец и workspace ссылки
+
+**Не ответственность**
+
+* аутентификация и выдача доступа к модулю
+
+**Зависимости**
+
+* `workspace`, `access`, `auditor`
 
 **Потребители**
 
@@ -543,6 +629,7 @@ flowchart TB
 | Данные профиля пользователя     | `user`         | `user`                         |
 | Сессия                          | `session`      | Все компоненты платформы       |
 | Credentials и способы входа     | `auth`         | `auth`                         |
+| Решения транзакций регистрации  | `registerer`   | `registerer`                   |
 | Доступы пользователя к модулям  | `access`       | `gateway`                      |
 | Уведомления                     | `notification` | `notification`, `calendar`     |
 | Данные почтовика                | `mailer`       | `mailer`, `calendar`           |
@@ -551,6 +638,7 @@ flowchart TB
 | События календаря               | `calendar`     | `calendar`, `planner`          |
 | Данные календаря (чей он и тд)  | `calendar`     | `calendar`                     |
 | Документы/Заметки               | `editor`       | `editor`                       |
+| Короткие ссылки                 | `shortlink`    | `shortlink`                    |
 | Данные запланированных событий  | `planner`      | `planner`                      |
 | Реестр модулей                  | `appreg`       | `gateway`, `bff`               |
 | Realtime-соединения             | `realtime`     | `фронт`, `продуктовые сервисы` |
@@ -564,18 +652,24 @@ sequenceDiagram
     actor Client as Пользователь
     participant Frontend
     participant Gateway as gateway
+    participant Registerer as registerer
     participant Auth as auth
     participant User as user
+    participant Access as access
     participant Session as session
     Client ->> Frontend: Register
     Frontend ->> Gateway: Register
-    Gateway ->> Auth: Register
-    Auth ->> User: CreateUser(profile)
-    User -->> Auth: userID
-    Auth ->> Auth: Сохранить password hash
-    Auth ->> Session: CreateSession(userID)
-    Session -->> Auth: SessionData
-    Auth -->> Gateway: OK
+    Gateway ->> Registerer: Register
+    Registerer ->> Auth: XA PREPARE credential
+    Registerer ->> User: XA PREPARE profile
+    Registerer ->> Access: XA PREPARE module access
+    Registerer ->> Registerer: Сохранить COMMIT
+    Registerer ->> Auth: XA COMMIT
+    Registerer ->> User: XA COMMIT
+    Registerer ->> Access: XA COMMIT
+    Registerer ->> Session: CreateSession(userID)
+    Session -->> Registerer: SessionData
+    Registerer -->> Gateway: OK
     Gateway -->> Frontend: OK
     Frontend -->> Client: OK
 ```

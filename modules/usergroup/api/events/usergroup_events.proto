@@ -1,0 +1,17 @@
+syntax = "proto3";
+package usergroupEvents;
+option go_package = "/.;usergroupevents";
+
+message GroupMembershipChanged {
+  string type = 1;
+  string group_id = 2;
+  string user_id = 3;
+  string owner_user_id = 4;
+  int64 occurred_at_unix = 5;
+}
+
+message GroupDeleted {
+  string group_id = 1;
+  string owner_user_id = 2;
+  int64 occurred_at_unix = 3;
+}

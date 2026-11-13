@@ -29,11 +29,13 @@ func New(c config.Gateway) *Proxy {
 		return (&net.Dialer{}).DialContext(ctx, network, addr)
 	}}, h2tls: &http2.Transport{DisableCompression: true}, timeout: config.Value(c.ProxyTimeouts.Timeout, time.Minute), idle: config.Value(c.ProxyTimeouts.IdleTimeout, 10*time.Minute)}
 }
+
 func (p *Proxy) Close() {
 	p.http1.CloseIdleConnections()
 	p.h2c.CloseIdleConnections()
 	p.h2tls.CloseIdleConnections()
 }
+
 func (p *Proxy) Forward(w http.ResponseWriter, req *http.Request, route *config.Route, modify func(*http.Response) error, onError func(error)) {
 	duration := config.Value(route.Timeout, p.timeout)
 	ctx := req.Context()

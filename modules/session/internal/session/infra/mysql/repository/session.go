@@ -13,6 +13,21 @@ import (
 	"session/internal/session/domain"
 )
 
+type sessionRepository struct {
+	ctx    context.Context
+	client mysql.ClientContext
+}
+
+type sessionRow struct {
+	ID         uuid.UUID            `db:"id"`
+	UserID     uuid.UUID            `db:"user_id"`
+	Status     domain.SessionStatus `db:"status"`
+	CreatedAt  time.Time            `db:"created_at"`
+	ExpiresAt  time.Time            `db:"expires_at"`
+	RevokedAt  *time.Time           `db:"revoked_at"`
+	Persistent bool                 `db:"persistent"`
+}
+
 func NewSessionRepository(
 	ctx context.Context,
 	client mysql.ClientContext,
@@ -21,11 +36,6 @@ func NewSessionRepository(
 		ctx:    ctx,
 		client: client,
 	}
-}
-
-type sessionRepository struct {
-	ctx    context.Context
-	client mysql.ClientContext
 }
 
 func (r *sessionRepository) NextID() (uuid.UUID, error) {
@@ -117,16 +127,6 @@ func (r *sessionRepository) FindActiveByUser(userID uuid.UUID) ([]domain.Session
 		out = append(out, row.toDomainModel())
 	}
 	return out, nil
-}
-
-type sessionRow struct {
-	ID         uuid.UUID            `db:"id"`
-	UserID     uuid.UUID            `db:"user_id"`
-	Status     domain.SessionStatus `db:"status"`
-	CreatedAt  time.Time            `db:"created_at"`
-	ExpiresAt  time.Time            `db:"expires_at"`
-	RevokedAt  *time.Time           `db:"revoked_at"`
-	Persistent bool                 `db:"persistent"`
 }
 
 func (r *sessionRow) toDomainModel() domain.Session {

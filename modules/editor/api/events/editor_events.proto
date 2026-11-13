@@ -1,0 +1,39 @@
+syntax = "proto3";
+package editorEvents;
+option go_package = "/.;editorevents";
+
+message DocumentChanged {
+  string type = 1;
+  string document_id = 2;
+  string actor_user_id = 3;
+  int64 version = 4;
+  int64 occurred_at_unix = 5;
+}
+message ShareRequested {
+  string share_id = 1;
+  string module_id = 2;
+  string group_id = 3;
+  string owner_user_id = 4;
+  int32 attempt = 5;
+  int64 occurred_at_unix = 6;
+}
+message ShareCancelled {
+  string share_id = 1;
+  string module_id = 2;
+  string group_id = 3;
+  string reason = 4;
+  int64 occurred_at_unix = 5;
+}
+message ModuleShared {
+  string share_id = 1;
+  string module_id = 2;
+  string group_id = 3;
+  int64 occurred_at_unix = 4;
+}
+message ModuleShareFailed {
+  string share_id = 1;
+  string module_id = 2;
+  string group_id = 3;
+  string reason = 4;
+  int64 occurred_at_unix = 5;
+}

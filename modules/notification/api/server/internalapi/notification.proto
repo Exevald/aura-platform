@@ -1,0 +1,8 @@
+syntax = "proto3";
+package notificationInternalAPI;
+option go_package = "/.;notificationinternalapi";
+service NotificationService {
+  rpc CreateNotification(CreateNotificationRequest) returns (CreateNotificationResponse);
+}
+message CreateNotificationRequest { string idempotency_key = 1; string user_id = 2; string workspace_id = 3; string kind = 4; string title = 5; string body = 6; bool email_requested = 7; string recipient_email = 8; }
+message CreateNotificationResponse { string notification_id = 1; bool created = 2; }

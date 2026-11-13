@@ -41,6 +41,7 @@ func TestMutationPhaseContract(t *testing.T) {
 		}
 	}
 }
+
 func TestInvalidDecisionsAndRequestMetadata(t *testing.T) {
 	for _, decision := range []*pb.InterceptResponse{nil, {}, {Result: &pb.InterceptResponse_ContinueResponse{}}, {Result: &pb.InterceptResponse_ImmediateResponse{}}} {
 		require.Error(t, validateDecision(decision, config.RequestHeaders, &config.Route{}, config.ProcessingMode{}))
@@ -70,4 +71,7 @@ func TestInvalidDecisionsAndRequestMetadata(t *testing.T) {
 	}
 	require.Error(t, validateImmediate(&pb.ImmediateResponse{StatusCode: 403, Headers: []*pb.Header{nil}}))
 }
-func pointer[T any](v T) *T { return &v }
+
+func pointer[T any](v T) *T {
+	return &v
+}

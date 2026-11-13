@@ -10,6 +10,7 @@ import (
 	"github.com/distributed-programming-2026/go-sdk/pkg/uow"
 
 	domainevent "github.com/distributed-programming-2026/lib/event"
+	"github.com/distributed-programming-2026/lib/xa"
 
 	"auth/internal/auth/config"
 )
@@ -23,7 +24,7 @@ func newDispatcher(logger *slog.Logger, conf config.Env, db *database, connectio
 
 	return outbox.Decorate(
 		event.ChainDispatcher(transport, event.DispatcherLogging(logger)),
-		uow.NewLockableUnitOfWork(db.unit),
+		xa.NewContextualUnitOfWork(uow.NewLockableUnitOfWork(db.unit)),
 		outbox.Config{
 			Transport:   "rabbitmq",
 			BatchSize:   conf.Relay.BatchSize,

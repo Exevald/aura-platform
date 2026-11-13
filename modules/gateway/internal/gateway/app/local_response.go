@@ -28,6 +28,7 @@ func (g *Gateway) local(w http.ResponseWriter, x *exchange, err error) {
 	defer func() { _ = response.Body.Close() }()
 	g.finishLocal(w, x, response)
 }
+
 func (g *Gateway) finishLocal(w http.ResponseWriter, x *exchange, response *http.Response) {
 	if err := g.processResponse(x, response); err != nil {
 		_ = response.Body.Close()
@@ -40,9 +41,7 @@ func (g *Gateway) finishLocal(w http.ResponseWriter, x *exchange, response *http
 	}
 	g.write(w, x, response)
 }
-func localResponse(req *http.Request, status int, body string) *http.Response {
-	return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body)), Request: req, Trailer: make(http.Header)}
-}
+
 func (g *Gateway) addHeaders(x *exchange, response *http.Response) {
 	for name, h := range x.route.AddHeaders {
 		if !h.Always && (response.StatusCode < 200 || response.StatusCode >= 300) {
@@ -53,6 +52,7 @@ func (g *Gateway) addHeaders(x *exchange, response *http.Response) {
 		}
 	}
 }
+
 func (g *Gateway) write(w http.ResponseWriter, x *exchange, response *http.Response) {
 	defer func() { _ = response.Body.Close() }()
 	g.addHeaders(x, response)
@@ -66,6 +66,11 @@ func (g *Gateway) write(w http.ResponseWriter, x *exchange, response *http.Respo
 		_, _ = io.Copy(w, response.Body)
 	}
 }
+
+func localResponse(req *http.Request, status int, body string) *http.Response {
+	return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body)), Request: req, Trailer: make(http.Header)}
+}
+
 func enforceBody(req *http.Request, response *http.Response) {
 	if req.Method == http.MethodHead || response.StatusCode == 204 || response.StatusCode == 304 {
 		_ = response.Body.Close()

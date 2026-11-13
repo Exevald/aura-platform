@@ -1,0 +1,16 @@
+syntax = "proto3";
+package shortlinkInternalAPI;
+
+option go_package = "/.;shortlinkinternalapi";
+
+service ShortlinkService {
+  rpc Echo(EchoRequest) returns (EchoResponse);
+}
+
+message EchoRequest {
+  string Body = 1;
+}
+
+message EchoResponse {
+  string OperationID = 1;
+}

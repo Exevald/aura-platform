@@ -12,9 +12,9 @@ import (
 	"bff/internal/bff/app"
 )
 
-func NewHandler(svc *app.Service) publicapi.StrictServerInterface { return &handler{svc: svc} }
-
 type handler struct{ svc *app.Service }
+
+func NewHandler(svc *app.Service) publicapi.StrictServerInterface { return &handler{svc: svc} }
 
 func (h *handler) GetMe(
 	ctx context.Context,
@@ -67,6 +67,7 @@ func (h *handler) UpdateMe(
 func getResponse(p app.Profile) publicapi.GetMe200JSONResponse {
 	return publicapi.GetMe200JSONResponse{UserID: openapi_types.UUID(p.UserID), DisplayName: p.DisplayName, FirstName: p.FirstName, LastName: p.LastName, Email: openapi_types.Email(p.Email)}
 }
+
 func updateResponse(p app.Profile) publicapi.UpdateMe200JSONResponse {
 	return publicapi.UpdateMe200JSONResponse{UserID: openapi_types.UUID(p.UserID), DisplayName: p.DisplayName, FirstName: p.FirstName, LastName: p.LastName, Email: openapi_types.Email(p.Email)}
 }

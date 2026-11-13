@@ -1,0 +1,15 @@
+syntax = "proto3";
+package filestorageInternalAPI;
+option go_package = "/.;filestorageinternalapi";
+service FilestorageService {
+  rpc Upload(stream UploadRequest) returns (FileMetadata);
+  rpc Download(DownloadRequest) returns (stream DownloadResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+}
+message UploadMetadata { string workspace_id = 1; string owner_user_id = 2; string file_name = 3; string content_type = 4; }
+message UploadRequest { oneof value { UploadMetadata metadata = 1; bytes chunk = 2; } }
+message FileMetadata { string id = 1; string workspace_id = 2; string owner_user_id = 3; string file_name = 4; string content_type = 5; int64 size_bytes = 6; string checksum_sha256 = 7; int64 created_at_unix = 8; }
+message DownloadRequest { string id = 1; string workspace_id = 2; string actor_user_id = 3; }
+message DownloadResponse { oneof value { FileMetadata metadata = 1; bytes chunk = 2; } }
+message DeleteRequest { string id = 1; string workspace_id = 2; string actor_user_id = 3; }
+message DeleteResponse {}

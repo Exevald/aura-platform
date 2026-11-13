@@ -19,6 +19,11 @@ type Config struct {
 
 type RegisterFunc func(chi.Router) error
 
+type Server struct {
+	graceTimeout time.Duration
+	srv          *http.Server
+}
+
 func NewServer(c Config, registers ...RegisterFunc) (*Server, error) {
 	if c.GraceTimeout <= 0 {
 		return nil, errors.New("HTTP grace timeout must be positive")
@@ -51,11 +56,6 @@ func NewServer(c Config, registers ...RegisterFunc) (*Server, error) {
 			ReadHeaderTimeout: c.ReadHeaderTimeout,
 		},
 	}, nil
-}
-
-type Server struct {
-	graceTimeout time.Duration
-	srv          *http.Server
 }
 
 func (s *Server) Serve(ctx context.Context) error {

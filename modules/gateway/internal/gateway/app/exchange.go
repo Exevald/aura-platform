@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const interceptorError = "interceptor_error"
+
 type exchange struct {
 	request          *http.Request
 	route            *config.Route
@@ -21,19 +23,22 @@ type exchange struct {
 	requestReplaced  bool
 	responseReplaced bool
 }
+
 type processingError struct {
 	status      int
 	code        string
 	interceptor string
 }
 
-func (e *processingError) Error() string { return e.code }
+func (e *processingError) Error() string {
+	return e.code
+}
+
 func failure(code string, statusCode int) *processingError {
 	return &processingError{code: code, status: statusCode}
 }
+
 func timeout(err error) bool {
 	var timed interface{ Timeout() bool }
 	return errors.Is(err, context.DeadlineExceeded) || status.Code(err) == codes.DeadlineExceeded || (errors.As(err, &timed) && timed.Timeout())
 }
-
-const interceptorError = "interceptor_error"

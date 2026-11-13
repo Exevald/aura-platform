@@ -63,6 +63,10 @@ github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 h1:tdlZCpZ/P9DhczC
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
+github.com/distributed-programming-2026/go-sdk/pkg/integrationtests v0.0.6 h1:EBqDpPO3dE2pxsmU9JHgIvuKAfEV5klKl1yqvaiEEIc=
+github.com/distributed-programming-2026/go-sdk/pkg/integrationtests v0.0.6/go.mod h1:lDMtAzfLSSctsyx/TwuX/jt4a0yuvsVoYfTv5pyqHTQ=
+github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.6 h1:g3ttHgyrBwLy8dE+FYv3beSNBN4g/PTiBs9+N5Y4eR8=
+github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.6/go.mod h1:UNWmHHdykfxwCywHYOz7meUwPLHiOEXYtmFZ/ZculF8=
 github.com/djherbis/atime v1.1.0 h1:rgwVbP/5by8BvvjBNrbh64Qz33idKT3pSnMSJsxhi0g=
 github.com/djherbis/atime v1.1.0/go.mod h1:28OF6Y8s3NQWwacXc5eZTsEsiMzp7LF8MbXE+XJPdBE=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=

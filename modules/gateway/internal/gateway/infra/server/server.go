@@ -42,7 +42,20 @@ func New(c *config.Config) (*Runtime, error) {
 	r.Health = mux
 	return r, nil
 }
-func (r *Runtime) Close() error { r.ready.Store(false); r.proxy.Close(); return r.closeClients() }
+
+// Protocols uses native Go HTTP/1 and cleartext HTTP/2 support.
+func Protocols() *http.Protocols {
+	p := new(http.Protocols)
+	p.SetHTTP1(true)
+	p.SetUnencryptedHTTP2(true)
+	return p
+}
+
+func (r *Runtime) Close() error {
+	r.ready.Store(false)
+	r.proxy.Close()
+	return r.closeClients()
+}
 
 // Serve takes already-bound listeners, so readiness never races port binding.
 func (r *Runtime) Serve(ctx context.Context, proxyListener net.Listener, healthListeners ...net.Listener) error {
@@ -79,12 +92,4 @@ func (r *Runtime) Serve(ctx context.Context, proxyListener net.Listener, healthL
 		}
 	}
 	return result
-}
-
-// Protocols uses native Go HTTP/1 and cleartext HTTP/2 support.
-func Protocols() *http.Protocols {
-	p := new(http.Protocols)
-	p.SetHTTP1(true)
-	p.SetUnencryptedHTTP2(true)
-	return p
 }

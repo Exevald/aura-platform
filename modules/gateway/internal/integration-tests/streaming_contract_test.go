@@ -49,6 +49,7 @@ func TestSSEFlushesBeforeUpstreamFinishes(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "\ndata: second\n\n", string(rest))
 }
+
 func TestUpgradeProxiesBidirectionalBytes(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "echo", r.Header.Get("Upgrade"))
@@ -88,6 +89,7 @@ func TestUpgradeProxiesBidirectionalBytes(t *testing.T) {
 		require.Equal(t, data, string(reply))
 	}
 }
+
 func TestGzipAndForwardedHeadersPreserved(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "gzip", r.Header.Get("Accept-Encoding"))

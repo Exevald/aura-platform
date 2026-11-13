@@ -1,5 +1,112 @@
 # Сценарии работы системы
 
+## Назначение модулей группе пользователей
+
+```mermaid
+sequenceDiagram
+    actor Owner as Владелец группы
+    participant Access
+    participant UserGroup
+    participant Auditor
+    Owner->>Access: PUT groups/{groupID}/modules(moduleIDs)
+    Access->>UserGroup: GetOwnedGroupMembers
+    alt Группа принадлежит владельцу
+        UserGroup-->>Access: member UUIDs
+        Access->>Access: добавить владельца к получателям и атомарно заменить назначения
+        Access-->>Owner: итоговый набор модулей
+        Access-->>Auditor: GroupModuleAccessGranted / Revoked
+    else Чужая группа
+        Access-->>Owner: 404 без частичных изменений
+    end
+```
+
+## Приглашение в рабочее пространство
+
+```mermaid
+sequenceDiagram
+    actor Owner as Владелец
+    actor Invitee as Участник
+    participant Gateway
+    participant Workspace
+    Owner->>Gateway: Создать invitation(email/userID, role)
+    Gateway->>Workspace: session + workspace membership check
+    Workspace->>Workspace: Сохранить token и срок действия
+    Workspace-->>Owner: pending invitation
+    Invitee->>Gateway: Принять token
+    Gateway->>Workspace: authenticated user + token
+    Workspace->>Workspace: Атомарно создать membership и удалить invitation
+    Workspace-->>Invitee: workspace с назначенной ролью
+```
+
+## Напоминание календаря
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Calendar
+    participant Notification
+    participant Realtime
+    participant Mailer
+    User->>Calendar: Создать event с attendees и reminders
+    Calendar->>Calendar: Event + reminder deliveries + outbox в одной транзакции
+    loop По расписанию
+        Calendar->>Notification: CreateNotification(idempotencyKey)
+        Notification->>Notification: Inbox + outbox
+        Notification-->>Realtime: Publish user/workspace event
+        opt Разрешён email-канал
+            Notification-->>Mailer: SendMail(idempotencyKey)
+        end
+        Calendar->>Calendar: Завершить или перенести recurring reminder
+    end
+```
+
+## Задача с синхронизацией в календарь
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Planner
+    participant Calendar
+    User->>Planner: Создать/изменить задачу с dueAt и calendarID
+    Planner->>Planner: Сохранить задачу и outbox
+    Planner->>Calendar: UpsertTaskEvent(taskID, dueAt)
+    alt Calendar недоступен при создании
+        Planner->>Planner: Компенсировать создание задачи
+        Planner-->>User: 503
+    else Успех
+        Calendar-->>Planner: eventID
+        Planner->>Planner: Сохранить calendarEventID
+        Planner-->>User: task
+    end
+```
+
+## Вложение документа
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Gateway
+    participant Editor
+    participant Filestorage
+    participant MinIO
+    User->>Gateway: multipart attachment + X-Workspace-ID
+    Gateway->>Gateway: session, workspace и module access
+    Gateway->>Editor: upload
+    Editor->>Editor: Проверить роль owner/editor документа
+    Editor->>Filestorage: streaming Upload
+    Filestorage->>MinIO: object
+    Filestorage->>Filestorage: metadata + outbox
+    Editor->>Editor: Привязать fileID к documentID
+    Editor-->>User: attachment metadata
+```
+
+`access` — единственный владелец назначений модулей группам. Каждый источник
+«группа–модуль» хранится отдельно, поэтому отзыв одного источника не удаляет доступ,
+который пользователь продолжает получать через другую группу. Изменения состава
+группы добавляют или удаляют гранты всех её активных модулей, а владелец получает
+их автоматически, даже если в группе ещё нет участников. Права на отдельные
+ресурсы по-прежнему принадлежат соответствующим продуктовым сервисам.
+
 ## Регистрация пользователя
 
 ```mermaid
@@ -7,63 +114,67 @@ sequenceDiagram
     actor Client as Пользователь
     participant Frontend
     participant Gateway as gateway
+    participant Registerer as registerer
+    participant RegistererDB as registererDB
     participant Auth as auth
     participant AuthDB as authDB
     participant Session as session
     participant SessionDB as sessionDB
     participant User as user
     participant UserDB as userDB
-    participant Access as access
-    participant AccessDB as accessDB
     participant Broker
     participant Auditor as auditor
     participant AuditDB as auditDB
     Client ->> Frontend: Register
-    Frontend ->> Gateway: /register(login, password, profile, rememberMe)
+    Frontend ->> Gateway: /api/public/v1/registerer/register
     Note over Gateway: Создать requestID
-    Gateway ->> Auth: Register(login, password, profile)
-    Auth ->> AuthDB: FindCredential(login)
-
-    alt Пользователь уже существует
-        AuthDB -->> Auth: found
-        Auth -->> Gateway: AlreadyExists
-        Gateway -->> Frontend: 409
-        Frontend -->> Client: Пользователь уже существует
-    else Пользователь не существует
-        AuthDB -->> Auth: not found
-        Auth ->> User: CreateUser(profile)
-        User ->> UserDB: INSERT user
-        UserDB -->> User: OK
-        User -->> Auth: userID
-        Auth ->> Access: Grant(editor, userID)
-        Access ->> AccessDB: UPSERT module_access
-        AccessDB -->> Access: OK
-        Access -->> Auth: Granted
-        Auth ->> AuthDB: INSERT credential
-        AuthDB -->> Auth: OK
-        alt Session доступен
-            Auth ->> Session: CreateSession(user_id, rememberMe)
+    Gateway ->> Registerer: Register(login, password, profile)
+    Registerer ->> RegistererDB: INSERT transaction(preparing, lease)
+    Note over Registerer,UserDB: transactionID и userID создаёт registerer
+    Registerer ->> Auth: PrepareCredentialRegistration(transactionID, userID, login, password)
+    Auth ->> AuthDB: XA PREPARE credential
+    AuthDB -->> Auth: PREPARED
+    Auth -->> Registerer: credentialID
+    Registerer ->> User: PrepareUserRegistration(transactionID, userID, profile)
+        User ->> UserDB: XA PREPARE user + UserCreated outbox
+        UserDB -->> User: PREPARED
+    User -->> Registerer: PREPARED
+    alt Все участники подготовлены
+        Registerer ->> RegistererDB: сохранить COMMIT + credentialID
+        Registerer ->> Auth: CommitCredentialRegistration
+        Auth ->> AuthDB: XA COMMIT auth
+        Registerer ->> User: CommitUserRegistration
+        User ->> UserDB: XA COMMIT user
+        Registerer ->> RegistererDB: state=committed + UserRegistered outbox
+        Note over Registerer,User: Недоставленный COMMIT повторяет recovery worker
+    else Ошибка prepare
+        Registerer ->> RegistererDB: сохранить ABORT
+        Registerer ->> Auth: RollbackCredentialRegistration
+        Auth ->> AuthDB: XA ROLLBACK auth
+        Registerer ->> User: RollbackUserRegistration
+        User ->> UserDB: XA ROLLBACK user
+        Registerer -->> Gateway: Registration unavailable/conflict
+    end
+    alt Session доступен после auth commit
+            Registerer ->> Session: CreateSession(user_id, rememberMe)
             Session ->> SessionDB: INSERT session
             SessionDB -->> Session: OK
             Session -->> Broker: SessionCreated
-            Session -->> Auth: session_id, expires_at
-        else Session не доступен
-            Auth ->> Gateway: Failed to create session
-            Gateway ->> Frontend: Редирект на страницу логинации
-        end
-        Auth -->> Broker: UserRegistered
-        Auth -->> Gateway: RegisterResult(user_id)
-        Gateway -->> Frontend: 201
-        Frontend -->> Client: Registration successful
+            Session -->> Registerer: session_id, expires_at
+    else Session не доступен
+        Note over Registerer,Session: Регистрация committed, authenticated=false
+    end
+    Registerer -->> Broker: UserRegistered из committed outbox
+    Registerer -->> Gateway: RegisterResult(user_id)
+    Gateway -->> Frontend: 201
+    Frontend -->> Client: Registration successful
 
-        alt Broker доступен
+    alt Broker доступен
             Auditor ->> Auditor: HandleEvent
             Auditor ->> AuditDB: INSERT audit event
             AuditDB -->> Auditor: OK
-        else Broker недоступен
-            Note over Auth, Broker: Логируем ошибку и ретраим обработку события
-        end
-
+    else Broker недоступен
+        Note over Registerer, Broker: Outbox relay повторяет публикацию
     end
 ```
 

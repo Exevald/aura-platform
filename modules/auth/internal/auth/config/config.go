@@ -55,10 +55,7 @@ type Relay struct {
 }
 
 type Dependencies struct {
-	UserAddress    string        `envconfig:"user_address" default:"user:8081"`
 	SessionAddress string        `envconfig:"session_address" default:"session:8081"`
-	AccessAddress  string        `envconfig:"access_address" default:"access-service:8081"`
-	EditorModuleID string        `envconfig:"editor_module_id" default:"b8547c76-51fd-4f7c-9c68-8f30c84f61cb"`
 	Timeout        time.Duration `envconfig:"timeout" default:"5s"`
 }
 
@@ -78,7 +75,7 @@ func (c Env) Validate() error {
 	if c.MySQL.MaxConnections <= 0 || c.Relay.BatchSize <= 0 {
 		return errors.New("connection and batch counts must be positive")
 	}
-	if c.Dependencies.Timeout <= 0 || c.Dependencies.UserAddress == "" || c.Dependencies.SessionAddress == "" || c.Dependencies.AccessAddress == "" || c.Dependencies.EditorModuleID == "" {
+	if c.Dependencies.Timeout <= 0 || c.Dependencies.SessionAddress == "" {
 		return errors.New("dependency configuration is invalid")
 	}
 	if c.Cookie.Name == "" {

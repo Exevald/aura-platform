@@ -17,8 +17,6 @@ type brokenBody struct {
 	closed bool
 }
 
-func (b *brokenBody) Read([]byte) (int, error) { return 0, b.err }
-func (b *brokenBody) Close() error             { b.closed = true; return nil }
 func TestBodyReadErrorsAndClosure(t *testing.T) {
 	for _, tc := range []struct {
 		err    error
@@ -42,10 +40,20 @@ func TestBodyReadErrorsAndClosure(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, data)
 }
+
 func TestHTTPSContextAndEndOfStream(t *testing.T) {
 	req := httptest.NewRequest("GET", "https://tenant.example/path?a=1", http.NoBody)
 	req.URL.Scheme = ""
 	event := processingEvent(&exchange{request: req}, config.Invocation{}, config.RequestHeaders, nil, nil)
 	require.Equal(t, "https", event.Context.Request.Scheme)
 	require.True(t, event.GetRequestHeaders().EndOfStream)
+}
+
+func (b *brokenBody) Read([]byte) (int, error) {
+	return 0, b.err
+}
+
+func (b *brokenBody) Close() error {
+	b.closed = true
+	return nil
 }

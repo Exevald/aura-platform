@@ -5,6 +5,9 @@ option go_package = "/.;userinternalapi";
 
 service UserService {
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc PrepareUserRegistration(PrepareUserRegistrationRequest) returns (RegistrationTransactionResponse);
+  rpc CommitUserRegistration(RegistrationTransactionRequest) returns (RegistrationTransactionResponse);
+  rpc RollbackUserRegistration(RegistrationTransactionRequest) returns (RegistrationTransactionResponse);
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
   rpc FindUserByEmail(FindUserByEmailRequest) returns (GetUserResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
@@ -20,6 +23,18 @@ message UserFields {
 
 message CreateUserRequest { UserFields fields = 1; }
 message CreateUserResponse { string user_id = 1; }
+
+message PrepareUserRegistrationRequest {
+  string transaction_id = 1;
+  string user_id = 2;
+  UserFields fields = 3;
+}
+
+message RegistrationTransactionRequest {
+  string transaction_id = 1;
+}
+
+message RegistrationTransactionResponse {}
 
 message GetUserRequest { string user_id = 1; }
 message GetUserResponse {

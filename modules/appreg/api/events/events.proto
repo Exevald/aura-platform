@@ -1,0 +1,4 @@
+syntax = "proto3";
+package appregEvents;
+option go_package = "/.;appregevents";
+message RegistryChanged { string revision = 1; int64 occurred_at_unix = 2; }

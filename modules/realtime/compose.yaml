@@ -1,0 +1,33 @@
+services:
+  realtime-service:
+    image: distributed-programming-realtime:local
+    build:
+      context: ./modules/realtime
+      dockerfile: Dockerfile
+    environment:
+      REALTIME_MYSQL_ADDRESS: mysql:3306
+      REALTIME_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${REALTIME_GRPC_PORT:-8081}:8081"
+      - "${REALTIME_HTTP_PORT:-8082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  realtime-message-handler:
+    image: distributed-programming-realtime:local
+    command: [message-handler]
+    environment:
+      REALTIME_MYSQL_ADDRESS: mysql:3306
+      REALTIME_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${REALTIME_MESSAGE_HANDLER_PORT:-8083}:8082"
+    depends_on:
+      realtime-service:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy

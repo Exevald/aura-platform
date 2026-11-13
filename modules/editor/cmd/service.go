@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"uuid"
 
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
@@ -11,6 +12,7 @@ import (
 	"editor/internal/editor/app"
 	"editor/internal/editor/config"
 	eventinfra "editor/internal/editor/infra/event"
+	editormysql "editor/internal/editor/infra/mysql"
 )
 
 func (a *application) serviceCmd() *cli.Command {
@@ -52,7 +54,16 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 		return err
 	}
 	defer func() { err = errors.Join(err, userConnection.Close()) }()
-	svc := app.NewService(db.unit, dispatcherFactory, users)
+	files, fileConnection, err := newFilestorageClient(conf)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, fileConnection.Close()) }()
+	moduleID, err := uuid.Parse(conf.Dependencies.ModuleID)
+	if err != nil {
+		return err
+	}
+	svc := app.NewService(editormysql.NewUnitOfWork(db.unit), dispatcherFactory, users, moduleID, files)
 	httpServer, err := newHTTPServer(logger, conf, svc)
 	if err != nil {
 		return err

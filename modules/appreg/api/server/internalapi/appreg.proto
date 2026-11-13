@@ -1,0 +1,11 @@
+syntax = "proto3";
+package appregInternalAPI;
+option go_package = "/.;appreginternalapi";
+service AppregService {
+  rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
+  rpc GetApp(GetAppRequest) returns (App);
+}
+message ListAppsRequest { bool default_enabled_only = 1; }
+message GetAppRequest { string app_id = 1; }
+message App { string id = 1; string code = 2; string name = 3; string frontend_route = 4; string backend_target = 5; bool default_enabled = 6; }
+message ListAppsResponse { repeated App apps = 1; }

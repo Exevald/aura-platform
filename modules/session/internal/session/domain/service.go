@@ -16,6 +16,20 @@ type SessionService interface {
 	RevokeAll(userID uuid.UUID) error
 }
 
+type Clock interface {
+	Now() time.Time
+}
+
+type SystemClock struct{}
+
+type sessionService struct {
+	repo               SessionRepository
+	dispatcher         event.Dispatcher
+	clock              Clock
+	defaultLifetime    time.Duration
+	persistentLifetime time.Duration
+}
+
 func NewSessionService(
 	repo SessionRepository,
 	dispatcher event.Dispatcher,
@@ -32,21 +46,9 @@ func NewSessionService(
 	}
 }
 
-type sessionService struct {
-	repo               SessionRepository
-	dispatcher         event.Dispatcher
-	clock              Clock
-	defaultLifetime    time.Duration
-	persistentLifetime time.Duration
+func (SystemClock) Now() time.Time {
+	return time.Now().UTC()
 }
-
-type Clock interface {
-	Now() time.Time
-}
-
-type SystemClock struct{}
-
-func (SystemClock) Now() time.Time { return time.Now().UTC() }
 
 func (s *sessionService) Create(userID uuid.UUID, persistent bool) (uuid.UUID, time.Time, error) {
 	lifetime := s.defaultLifetime

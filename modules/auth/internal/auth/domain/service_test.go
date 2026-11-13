@@ -16,13 +16,62 @@ type authClock struct {
 	now time.Time
 }
 
-func (c authClock) Now() time.Time {
-	return c.now
-}
-
 type mockCredentialRepository struct {
 	credentials map[uuid.UUID]Credential
 	findError   error
+}
+
+type mockPasswordHasher struct{}
+
+type mockAuthDispatcher struct {
+	messages []proto.Message
+}
+
+func TestAuthServiceCredentialLifecycle(t *testing.T) {
+	repo := &mockCredentialRepository{credentials: make(map[uuid.UUID]Credential)}
+	dispatcher := &mockAuthDispatcher{}
+	service := newAuthServiceForTest(repo, dispatcher)
+	userID := uuid.New()
+
+	credential, err := service.CreateCredential(userID, "ada", "correct horse battery")
+	require.NoError(t, err)
+	require.Equal(t, "hash:correct horse battery", credential.PasswordHash)
+	require.Empty(t, dispatcher.messages)
+
+	_, err = service.CreateCredential(uuid.New(), "ada", "another valid password")
+	require.ErrorIs(t, err, ErrCredentialExists)
+
+	authenticated, err := service.Authenticate("ada", "correct horse battery")
+	require.NoError(t, err)
+	require.Equal(t, userID, authenticated.UserID)
+	require.NoError(t, service.RecordLogin(authenticated))
+	require.IsType(t, &authevents.UserLoggedIn{}, dispatcher.messages[0])
+
+	err = service.ChangePassword(userID, "correct horse battery", "a completely new password")
+	require.NoError(t, err)
+	require.IsType(t, &authevents.PasswordChanged{}, dispatcher.messages[1])
+	_, err = service.Authenticate("ada", "a completely new password")
+	require.NoError(t, err)
+}
+
+func TestAuthServiceDoesNotHideRepositoryFailure(t *testing.T) {
+	want := errors.New("database unavailable")
+	repo := &mockCredentialRepository{credentials: make(map[uuid.UUID]Credential), findError: want}
+	_, err := newAuthServiceForTest(repo, &mockAuthDispatcher{}).Authenticate(
+		"ada",
+		"correct horse battery",
+	)
+	require.ErrorIs(t, err, want)
+}
+
+func TestPasswordPolicy(t *testing.T) {
+	require.ErrorIs(t, validatePassword("1234567"), ErrInvalidPassword)
+	require.NoError(t, validatePassword("12345678"))
+	require.NoError(t, validatePassword("very very long password"))
+}
+
+func (c authClock) Now() time.Time {
+	return c.now
 }
 
 func (r *mockCredentialRepository) NextID() (uuid.UUID, error) {
@@ -68,8 +117,6 @@ func (r *mockCredentialRepository) Delete(id uuid.UUID) error {
 	return nil
 }
 
-type mockPasswordHasher struct{}
-
 func (mockPasswordHasher) Hash(password string) (string, error) {
 	return "hash:" + password, nil
 }
@@ -79,10 +126,6 @@ func (mockPasswordHasher) Compare(hash, password string) error {
 		return errors.New("mismatch")
 	}
 	return nil
-}
-
-type mockAuthDispatcher struct {
-	messages []proto.Message
 }
 
 func (d *mockAuthDispatcher) Dispatch(message proto.Message) error {
@@ -97,47 +140,4 @@ func newAuthServiceForTest(repo *mockCredentialRepository, dispatcher *mockAuthD
 		dispatcher,
 		authClock{now: time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)},
 	)
-}
-
-func TestAuthServiceCredentialLifecycle(t *testing.T) {
-	repo := &mockCredentialRepository{credentials: make(map[uuid.UUID]Credential)}
-	dispatcher := &mockAuthDispatcher{}
-	service := newAuthServiceForTest(repo, dispatcher)
-	userID := uuid.New()
-
-	credential, err := service.CreateCredential(userID, "ada", "correct horse battery")
-	require.NoError(t, err)
-	require.Equal(t, "hash:correct horse battery", credential.PasswordHash)
-	require.IsType(t, &authevents.UserRegistered{}, dispatcher.messages[0])
-
-	_, err = service.CreateCredential(uuid.New(), "ada", "another valid password")
-	require.ErrorIs(t, err, ErrCredentialExists)
-
-	authenticated, err := service.Authenticate("ada", "correct horse battery")
-	require.NoError(t, err)
-	require.Equal(t, userID, authenticated.UserID)
-	require.NoError(t, service.RecordLogin(authenticated))
-	require.IsType(t, &authevents.UserLoggedIn{}, dispatcher.messages[1])
-
-	err = service.ChangePassword(userID, "correct horse battery", "a completely new password")
-	require.NoError(t, err)
-	require.IsType(t, &authevents.PasswordChanged{}, dispatcher.messages[2])
-	_, err = service.Authenticate("ada", "a completely new password")
-	require.NoError(t, err)
-}
-
-func TestAuthServiceDoesNotHideRepositoryFailure(t *testing.T) {
-	want := errors.New("database unavailable")
-	repo := &mockCredentialRepository{credentials: make(map[uuid.UUID]Credential), findError: want}
-	_, err := newAuthServiceForTest(repo, &mockAuthDispatcher{}).Authenticate(
-		"ada",
-		"correct horse battery",
-	)
-	require.ErrorIs(t, err, want)
-}
-
-func TestPasswordPolicy(t *testing.T) {
-	require.ErrorIs(t, validatePassword("1234567"), ErrInvalidPassword)
-	require.NoError(t, validatePassword("12345678"))
-	require.NoError(t, validatePassword("very very long password"))
 }

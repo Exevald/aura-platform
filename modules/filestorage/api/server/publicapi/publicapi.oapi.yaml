@@ -1,0 +1,39 @@
+openapi: 3.0.0
+info: { version: 1.0.0, title: Filestorage metadata API, x-api-identifier: filestoragepublicapi }
+paths:
+  /api/files/v1/files:
+    get:
+      operationId: listFiles
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' } ]
+      responses:
+        '200': { description: Files, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/file' } } } } }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/files/v1/files/{fileID}:
+    delete:
+      operationId: deleteFile
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' }, { name: fileID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+components:
+  parameters:
+    authUser: { name: X-Auth-User, in: header, required: true, schema: { type: string, format: uuid } }
+    workspace: { name: X-Workspace-ID, in: header, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    file:
+      type: object
+      required: [id, workspaceID, ownerUserID, fileName, contentType, sizeBytes, checksumSHA256, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        workspaceID: { type: string, format: uuid }
+        ownerUserID: { type: string, format: uuid }
+        fileName: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        checksumSHA256: { type: string }
+        createdAt: { type: string, format: date-time }
+    error: { type: object, required: [message], properties: { message: { type: string } } }
+  responses:
+    notFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    unavailable: { description: Unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }

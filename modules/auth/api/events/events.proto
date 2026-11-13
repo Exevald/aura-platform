@@ -3,13 +3,6 @@ package authEvents;
 
 option go_package = "/.;authevents";
 
-message UserRegistered {
-  string credential_id = 1;
-  string user_id = 2;
-  string login = 3;
-  int64 occurred_at_unix = 4;
-}
-
 message UserLoggedIn {
   string credential_id = 1;
   string user_id = 2;

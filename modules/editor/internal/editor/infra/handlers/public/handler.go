@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"editor/internal/editor/domain/model"
 	"errors"
 	"uuid"
 
@@ -11,7 +12,6 @@ import (
 
 	publicapi "editor/api/server/publicapi"
 	"editor/internal/editor/app"
-	"editor/internal/editor/domain"
 )
 
 const (
@@ -19,19 +19,19 @@ const (
 	permissionsUnavailable = "permissions unavailable"
 )
 
-func NewHandler(svc app.EditorService) publicapi.StrictServerInterface {
-	return &handler{svc: svc}
-}
-
 type handler struct {
 	svc app.EditorService
+}
+
+func NewHandler(svc app.EditorService) publicapi.StrictServerInterface {
+	return &handler{svc: svc}
 }
 
 func (h *handler) ListDocuments(
 	ctx context.Context,
 	req publicapi.ListDocumentsRequestObject,
 ) (publicapi.ListDocumentsResponseObject, error) {
-	values, err := h.svc.List(ctx, convertToUserID(req.Params.XAuthUser))
+	values, err := h.svc.List(ctx, convertToUserID(req.Params.XAuthUser), convertToUserID(req.Params.XWorkspaceID))
 	if err != nil {
 		return publicapi.ListDocuments503JSONResponse{Message: editorUnavailable}, nil
 	}
@@ -46,8 +46,8 @@ func (h *handler) CreateDocument(
 	ctx context.Context,
 	req publicapi.CreateDocumentRequestObject,
 ) (publicapi.CreateDocumentResponseObject, error) {
-	d, err := h.svc.Create(ctx, convertToUserID(req.Params.XAuthUser), req.Body.Title, req.Body.Content)
-	if errors.Is(err, domain.ErrInvalidDocument) {
+	d, err := h.svc.Create(ctx, convertToUserID(req.Params.XAuthUser), convertToUserID(req.Params.XWorkspaceID), req.Body.Title, req.Body.Content)
+	if errors.Is(err, model.ErrInvalidDocument) {
 		return publicapi.CreateDocument400JSONResponse{Message: err.Error()}, nil
 	}
 	if err != nil {
@@ -60,11 +60,11 @@ func (h *handler) GetDocument(
 	ctx context.Context,
 	req publicapi.GetDocumentRequestObject,
 ) (publicapi.GetDocumentResponseObject, error) {
-	d, err := h.svc.Get(ctx, convertToUserID(req.Params.XAuthUser), uuid.UUID(req.DocumentID))
-	if errors.Is(err, domain.ErrPermissionDenied) {
+	d, err := h.svc.Get(ctx, convertToUserID(req.Params.XAuthUser), convertToUserID(req.Params.XWorkspaceID), uuid.UUID(req.DocumentID))
+	if errors.Is(err, model.ErrPermissionDenied) {
 		return publicapi.GetDocument403JSONResponse{Message: err.Error()}, nil
 	}
-	if errors.Is(err, domain.ErrDocumentNotFound) {
+	if errors.Is(err, model.ErrDocumentNotFound) {
 		return publicapi.GetDocument404JSONResponse{Message: err.Error()}, nil
 	}
 	if err != nil {
@@ -80,25 +80,26 @@ func (h *handler) UpdateDocument(
 	d, err := h.svc.Update(
 		ctx,
 		convertToUserID(req.Params.XAuthUser),
+		convertToUserID(req.Params.XWorkspaceID),
 		uuid.UUID(req.DocumentID),
 		req.Body.Title,
 		req.Body.Content,
 		req.Body.Version,
 	)
 	switch {
-	case errors.Is(err, domain.ErrInvalidDocument):
+	case errors.Is(err, model.ErrInvalidDocument):
 		return publicapi.UpdateDocument400JSONResponse{
 			BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: err.Error()},
 		}, nil
-	case errors.Is(err, domain.ErrPermissionDenied):
+	case errors.Is(err, model.ErrPermissionDenied):
 		return publicapi.UpdateDocument403JSONResponse{
 			ForbiddenJSONResponse: publicapi.ForbiddenJSONResponse{Message: err.Error()},
 		}, nil
-	case errors.Is(err, domain.ErrDocumentNotFound):
+	case errors.Is(err, model.ErrDocumentNotFound):
 		return publicapi.UpdateDocument404JSONResponse{
 			NotFoundJSONResponse: publicapi.NotFoundJSONResponse{Message: err.Error()},
 		}, nil
-	case errors.Is(err, domain.ErrVersionConflict):
+	case errors.Is(err, model.ErrVersionConflict):
 		return publicapi.UpdateDocument409JSONResponse{
 			ConflictJSONResponse: publicapi.ConflictJSONResponse{Message: err.Error()},
 		}, nil
@@ -117,14 +118,15 @@ func (h *handler) DeleteDocument(
 	err := h.svc.Delete(
 		ctx,
 		convertToUserID(req.Params.XAuthUser),
+		convertToUserID(req.Params.XWorkspaceID),
 		uuid.UUID(req.DocumentID),
 	)
-	if errors.Is(err, domain.ErrPermissionDenied) {
+	if errors.Is(err, model.ErrPermissionDenied) {
 		return publicapi.DeleteDocument403JSONResponse{
 			ForbiddenJSONResponse: publicapi.ForbiddenJSONResponse{Message: err.Error()},
 		}, nil
 	}
-	if errors.Is(err, domain.ErrDocumentNotFound) {
+	if errors.Is(err, model.ErrDocumentNotFound) {
 		return publicapi.DeleteDocument404JSONResponse{
 			NotFoundJSONResponse: publicapi.NotFoundJSONResponse{Message: err.Error()},
 		}, nil
@@ -144,9 +146,10 @@ func (h *handler) ListPermissions(
 	values, err := h.svc.Permissions(
 		ctx,
 		convertToUserID(req.Params.XAuthUser),
+		convertToUserID(req.Params.XWorkspaceID),
 		uuid.UUID(req.DocumentID),
 	)
-	if errors.Is(err, domain.ErrPermissionDenied) {
+	if errors.Is(err, model.ErrPermissionDenied) {
 		return publicapi.ListPermissions403JSONResponse{
 			ForbiddenJSONResponse: publicapi.ForbiddenJSONResponse{Message: err.Error()},
 		}, nil
@@ -178,16 +181,17 @@ func (h *handler) GrantPermission(
 	err := h.svc.Grant(
 		ctx,
 		convertToUserID(req.Params.XAuthUser),
+		convertToUserID(req.Params.XWorkspaceID),
 		uuid.UUID(req.DocumentID),
 		string(req.Body.Email),
-		domain.Role(req.Body.Role),
+		model.Role(req.Body.Role),
 	)
-	if errors.Is(err, domain.ErrInvalidPermission) {
+	if errors.Is(err, model.ErrInvalidPermission) {
 		return publicapi.GrantPermission400JSONResponse{
 			BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: err.Error()},
 		}, nil
 	}
-	if errors.Is(err, domain.ErrPermissionDenied) {
+	if errors.Is(err, model.ErrPermissionDenied) {
 		return publicapi.GrantPermission403JSONResponse{
 			ForbiddenJSONResponse: publicapi.ForbiddenJSONResponse{Message: err.Error()},
 		}, nil
@@ -212,15 +216,16 @@ func (h *handler) RevokePermission(
 	err := h.svc.Revoke(
 		ctx,
 		convertToUserID(req.Params.XAuthUser),
+		convertToUserID(req.Params.XWorkspaceID),
 		uuid.UUID(req.DocumentID),
 		uuid.UUID(req.UserID),
 	)
-	if errors.Is(err, domain.ErrInvalidPermission) {
+	if errors.Is(err, model.ErrInvalidPermission) {
 		return publicapi.RevokePermission400JSONResponse{
 			BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: err.Error()},
 		}, nil
 	}
-	if errors.Is(err, domain.ErrPermissionDenied) {
+	if errors.Is(err, model.ErrPermissionDenied) {
 		return publicapi.RevokePermission403JSONResponse{
 			ForbiddenJSONResponse: publicapi.ForbiddenJSONResponse{Message: err.Error()},
 		}, nil
@@ -237,9 +242,10 @@ func convertToUserID(id openapi_types.UUID) uuid.UUID {
 	return uuid.UUID(id)
 }
 
-func convertToAPIDocument(d domain.Document) publicapi.Document {
+func convertToAPIDocument(d model.Document) publicapi.Document {
 	return publicapi.Document{
 		Id:          openapi_types.UUID(d.ID),
+		WorkspaceID: openapi_types.UUID(d.WorkspaceID),
 		OwnerUserID: openapi_types.UUID(d.OwnerUserID),
 		Title:       d.Title,
 		Content:     d.Content,

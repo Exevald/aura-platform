@@ -10,6 +10,14 @@ type Env struct {
 	GRPC  GRPC  `envconfig:"grpc"`
 	HTTP  HTTP  `envconfig:"http"`
 	MySQL MySQL `envconfig:"mysql"`
+	AMQP  AMQP  `envconfig:"amqp"`
+}
+
+type AMQP struct {
+	URL            string        `envconfig:"url" default:"amqp://local:local@localhost:5672/"`
+	Queue          string        `envconfig:"queue" default:"auditor.share"`
+	ConnectTimeout time.Duration `envconfig:"connect_timeout" default:"5s"`
+	PrefetchCount  int           `envconfig:"prefetch_count" default:"10"`
 }
 
 type App struct {
@@ -50,6 +58,9 @@ func (c Env) Validate() error {
 	}
 	if c.MySQL.Address == "" || c.MySQL.Database == "" || c.MySQL.User == "" || c.HTTP.Address == "" || c.GRPC.Address == "" {
 		return errors.New("database and server configuration must not be empty")
+	}
+	if c.AMQP.URL == "" || c.AMQP.Queue == "" || c.AMQP.ConnectTimeout <= 0 || c.AMQP.PrefetchCount <= 0 {
+		return errors.New("AMQP configuration is invalid")
 	}
 	return nil
 }

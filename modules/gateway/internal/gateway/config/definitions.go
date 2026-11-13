@@ -56,6 +56,7 @@ func compileInterceptor(i *Interceptor) error {
 	}
 	return nil
 }
+
 func targetURL(s string, implicit bool) (*url.URL, error) {
 	if implicit && !strings.Contains(s, "://") {
 		s = "http://" + s

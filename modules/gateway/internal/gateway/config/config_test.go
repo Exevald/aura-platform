@@ -14,9 +14,15 @@ type ConfigSuite struct {
 	dir string
 }
 
+func TestConfigSuite(t *testing.T) {
+	suite.Run(t, new(ConfigSuite))
+}
+
+func (s *ConfigSuite) SetupTest() {
+	s.dir = s.T().TempDir()
+}
+
 func file(t *testing.T, dir, name, body string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
 }
-func (s *ConfigSuite) SetupTest()  { s.dir = s.T().TempDir() }
-func TestConfigSuite(t *testing.T) { suite.Run(t, new(ConfigSuite)) }

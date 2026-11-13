@@ -7,6 +7,7 @@ import (
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/mysql"
 	"github.com/distributed-programming-2026/go-sdk/pkg/uow"
+	"github.com/distributed-programming-2026/lib/xa"
 	mysqldriver "github.com/go-sql-driver/mysql"
 
 	"user/internal/user/config"
@@ -16,6 +17,7 @@ import (
 type database struct {
 	connector mysql.Connector
 	unit      uow.UnitOfWorkWithRepositoryProvider[*usermysql.RepositoryProvider]
+	xa        *xa.Manager
 }
 
 func openDatabase(ctx context.Context, logger *slog.Logger, conf config.Env) (_ *database, err error) {
@@ -58,5 +60,6 @@ func openDatabase(ctx context.Context, logger *slog.Logger, conf config.Env) (_ 
 	return &database{
 		connector: connector,
 		unit:      unit,
+		xa:        xa.NewManager(client),
 	}, nil
 }

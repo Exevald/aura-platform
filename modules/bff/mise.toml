@@ -4,7 +4,6 @@ run = [
     { task = "modules" },
     { task = "build" },
     { task = "test" },
-    { task = "integration-tests" },
     { task = "lint" },
 ]
 
@@ -66,10 +65,3 @@ printf '%s\n' "$packages" | awk '!/\/internal\/integration-tests($|\/)/' | xargs
 
 [tasks."lint"]
 run = "golangci-lint run"
-
-[tasks.integration-tests]
-depends = ["build"]
-run = [
-    "docker build --tag distributed-programming-bff:integration .",
-    "go test -v -count=1 ./internal/integration-tests",
-]

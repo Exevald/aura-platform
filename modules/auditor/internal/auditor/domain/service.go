@@ -16,7 +16,7 @@ func NewAuditService(repo AuditRepository) *AuditService {
 	}
 }
 
-func (s *AuditService) Record(record AuditRecord) (uuid.UUID, error) {
+func (s *AuditService) Record(record AuditRecord, now time.Time) (uuid.UUID, error) {
 	if record.EventID == "" || record.EventType == "" || record.Producer == "" {
 		return uuid.Nil(), ErrInvalidAuditRecord
 	}
@@ -31,7 +31,7 @@ func (s *AuditService) Record(record AuditRecord) (uuid.UUID, error) {
 	if err != nil {
 		return uuid.Nil(), err
 	}
-	record.ReceivedAt = time.Now().UTC()
+	record.ReceivedAt = now.UTC()
 	if record.OccurredAt.IsZero() {
 		record.OccurredAt = record.ReceivedAt
 	}

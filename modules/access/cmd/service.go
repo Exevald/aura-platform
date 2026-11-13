@@ -11,6 +11,8 @@ import (
 	"access/internal/access/app"
 	"access/internal/access/config"
 	eventinfra "access/internal/access/infra/event"
+	accessmysql "access/internal/access/infra/mysql"
+	registrationinfra "access/internal/access/infra/registration"
 )
 
 func (a *application) serviceCmd() *cli.Command {
@@ -40,19 +42,32 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 	if err != nil {
 		return err
 	}
-	svc := app.NewModuleAccessService(db.unit, eventinfra.NewDispatcherFactory(appID, dispatcher))
+	svc := app.NewModuleAccessService(accessmysql.NewUnitOfWork(db.unit), eventinfra.NewDispatcherFactory(appID, dispatcher))
+	groups, groupConnection, err := newUserGroupClient(conf)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, groupConnection.Close()) }()
+	registry, err := newAppRegistryClient(conf)
+	if err != nil {
+		return err
+	}
+	if err = db.xa.Validate(ctx); err != nil {
+		return err
+	}
+	registration := registrationinfra.New(db.xa, eventinfra.NewDispatcherFactory(appID, dispatcher))
 
 	err = connection.Start()
 	if err != nil {
 		return err
 	}
 
-	httpServer, err := newHTTPServer(conf)
+	httpServer, err := newHTTPServer(logger, conf, svc, groups, registry)
 	if err != nil {
 		return err
 	}
 
-	grpcServer, err := newGRPCServer(conf, svc)
+	grpcServer, err := newGRPCServer(conf, svc, registration)
 	if err != nil {
 		return err
 	}

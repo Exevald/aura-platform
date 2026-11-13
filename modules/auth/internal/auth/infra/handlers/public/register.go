@@ -20,6 +20,11 @@ import (
 	"auth/internal/auth/config"
 )
 
+type validationError struct {
+	Message string            `json:"message"`
+	Fields  map[string]string `json:"fields,omitempty"`
+}
+
 func Register(svc app.AuthService, logger *slog.Logger, cookie config.Cookie) (runtimehttp.RegisterFunc, error) {
 	spec, err := publicapi.GetSwagger()
 	if err != nil {
@@ -70,11 +75,6 @@ func Register(svc app.AuthService, logger *slog.Logger, cookie config.Cookie) (r
 		})
 		return nil
 	}, nil
-}
-
-type validationError struct {
-	Message string            `json:"message"`
-	Fields  map[string]string `json:"fields,omitempty"`
 }
 
 func writeValidationError(w http.ResponseWriter, validationErr error) {

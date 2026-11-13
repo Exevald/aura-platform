@@ -6,29 +6,26 @@ import {errorMessage} from './error'
 export function SharePresenter({documentID, onClose}: { documentID: string; onClose: () => void }) {
     const [items, setItems] = useState<Permission[]>([])
     const [error, setError] = useState('')
-    const load = useCallback(() => api.permissions(documentID).then(setItems).catch((requestError) => setError(errorMessage(requestError))), [documentID])
-
+    const load = useCallback(async () => {
+        setItems(await api.permissions(documentID))
+    }, [documentID])
     useEffect(() => {
-        void load()
-    }, [load])
+        void api.permissions(documentID)
+            .then(setItems)
+            .catch(e => setError(errorMessage(e)))
+    }, [documentID])
 
-    async function grant(email: string, role: 'viewer' | 'editor') {
+    async function run(action: () => Promise<unknown>) {
         try {
-            await api.grant(documentID, email, role)
+            setError('');
+            await action();
             await load()
-        } catch (requestError) {
-            setError(errorMessage(requestError))
+        } catch (e) {
+            setError(errorMessage(e))
         }
     }
 
-    async function revoke(userID: string) {
-        try {
-            await api.revoke(documentID, userID)
-            await load()
-        } catch (requestError) {
-            setError(errorMessage(requestError))
-        }
-    }
-
-    return <ShareView items={items} error={error} onClose={onClose} onGrant={grant} onRevoke={revoke}/>
+    return <ShareView items={items} error={error} onClose={onClose}
+                      onGrant={(email, role) => run(() => api.grant(documentID, email, role))}
+                      onRevoke={(userID) => run(() => api.revoke(documentID, userID))}/>
 }

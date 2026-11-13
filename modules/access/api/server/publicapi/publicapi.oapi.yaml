@@ -1,0 +1,60 @@
+openapi: 3.0.0
+info: { version: 1.0.0, title: Access public API, x-api-identifier: accesspublicapi }
+paths:
+  /api/access/v1/modules:
+    get:
+      operationId: listModules
+      parameters: [ { $ref: '#/components/parameters/authUser' } ]
+      responses:
+        '200': { description: Modules, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/module' } } } } }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/access/v1/group-module-accesses:
+    get:
+      operationId: listGroupModuleAccesses
+      parameters: [ { $ref: '#/components/parameters/authUser' } ]
+      responses:
+        '200': { description: Group module accesses, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/groupModuleAccess' } } } } }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/access/v1/groups/{groupID}/modules:
+    put:
+      operationId: setGroupModules
+      parameters:
+        - { $ref: '#/components/parameters/authUser' }
+        - { name: groupID, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/setGroupModulesInput' } } } }
+      responses:
+        '200': { description: Updated accesses, content: { application/json: { schema: { $ref: '#/components/schemas/groupModuleAccess' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '409': { description: Group is empty, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+        '503': { $ref: '#/components/responses/unavailable' }
+components:
+  parameters:
+    authUser: { name: X-Auth-User, in: header, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    module:
+      type: object
+      required: [id, code, name]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+    groupModuleAccess:
+      type: object
+      required: [groupID, moduleIDs]
+      properties:
+        groupID: { type: string, format: uuid }
+        moduleIDs: { type: array, uniqueItems: true, items: { type: string, format: uuid } }
+    setGroupModulesInput:
+      type: object
+      required: [moduleIDs]
+      properties:
+        moduleIDs: { type: array, uniqueItems: true, items: { type: string, format: uuid } }
+    error:
+      type: object
+      required: [message]
+      properties: { message: { type: string } }
+  responses:
+    badRequest: { description: Bad request, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    notFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    unavailable: { description: Unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }

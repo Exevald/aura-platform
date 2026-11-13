@@ -1,0 +1,7 @@
+syntax = "proto3";
+package workspaceEvents;
+option go_package = "/.;workspaceevents";
+message WorkspaceCreated { string workspace_id = 1; string owner_user_id = 2; string kind = 3; string name = 4; int64 occurred_at_unix = 5; }
+message WorkspaceMembershipChanged { string workspace_id = 1; string user_id = 2; string role = 3; bool active = 4; int64 occurred_at_unix = 5; }
+message WorkspaceDeleted { string workspace_id = 1; string owner_user_id = 2; int64 occurred_at_unix = 3; }
+message WorkspaceInvitationChanged { string invitation_id = 1; string workspace_id = 2; string email = 3; string role = 4; string action = 5; int64 occurred_at_unix = 6; }

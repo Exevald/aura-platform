@@ -33,8 +33,7 @@ github.com/distributed-programming-2026/go-sdk/pkg/amqp v0.0.3 h1:JYrMPqaU/Etkzi
 github.com/distributed-programming-2026/go-sdk/pkg/amqp v0.0.3/go.mod h1:KNPxhsZaNFMfLV3g0HdIsuB+Wm/9E0NPP6PwNnNYTco=
 github.com/distributed-programming-2026/go-sdk/pkg/event v0.0.3 h1:7Y0VYJYJm++by30VW1CuS+NliALFJHtJyPqxEgZzKeg=
 github.com/distributed-programming-2026/go-sdk/pkg/event v0.0.3/go.mod h1:8N3vCmPny+8yC6v1zE/nhhgRSOaViLS/ZSMet3SOhHk=
-github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.3 h1:NByT+Yg3GFijMDV0oiWcOBR9xBrOlzHsLJWMjOxCj+k=
-github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.3/go.mod h1:UNWmHHdykfxwCywHYOz7meUwPLHiOEXYtmFZ/ZculF8=
+github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.6 h1:g3ttHgyrBwLy8dE+FYv3beSNBN4g/PTiBs9+N5Y4eR8=
 github.com/distributed-programming-2026/go-sdk/pkg/migrator v0.0.3 h1:PdnnCNUhZVnmDB0xLDMOKp+yMhzW/Flhz4kY8udx9wM=
 github.com/distributed-programming-2026/go-sdk/pkg/migrator v0.0.3/go.mod h1:T916om2q40vGr6ez84CLDLZW9W8RtKdnbx9HfyWIdcw=
 github.com/distributed-programming-2026/go-sdk/pkg/mysql v0.0.5 h1:fRUkvrcSU0V+/ElJoxM/wTmKn8K0GdAOwKGv/qhSNLk=

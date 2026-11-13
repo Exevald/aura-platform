@@ -7,9 +7,7 @@ services:
     environment:
       AUTH_MYSQL_ADDRESS: mysql:3306
       AUTH_AMQP_URL: amqp://local:local@rabbitmq:5672/
-      AUTH_DEPENDENCIES_USER_ADDRESS: user-service:8081
       AUTH_DEPENDENCIES_SESSION_ADDRESS: session-service:8081
-      AUTH_DEPENDENCIES_ACCESS_ADDRESS: access-service:8081
       AUTH_COOKIE_SECURE: "false"
       AUTH_COOKIE_DOMAIN: "${AUTH_COOKIE_DOMAIN:-}"
     ports:
@@ -20,9 +18,5 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      user-service:
-        condition: service_started
       session-service:
-        condition: service_started
-      access-service:
         condition: service_started

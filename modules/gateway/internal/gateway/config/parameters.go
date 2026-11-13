@@ -44,6 +44,7 @@ func ParametersRegexp(pattern string) (*regexp.Regexp, error) {
 	}
 	return re, nil
 }
+
 func Parameters(re *regexp.Regexp, path string) map[string]string {
 	result := map[string]string{}
 	if re == nil {
@@ -60,6 +61,7 @@ func Parameters(re *regexp.Regexp, path string) map[string]string {
 	}
 	return result
 }
+
 func HeaderValue(h Header, path string) (string, bool) {
 	if h.RE == nil {
 		return h.Value, true

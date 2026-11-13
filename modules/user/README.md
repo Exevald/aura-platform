@@ -11,7 +11,7 @@
 
 ## API
 
-Внутренний gRPC API предоставляет CreateUser, GetUser, UpdateUser и DeleteUser. Публичного API создания профиля нет: регистрацией управляет auth.
+Внутренний gRPC API предоставляет CreateUser, GetUser, UpdateUser и DeleteUser, а также XA prepare/commit/rollback для регистрации. Публичного API создания профиля нет: регистрацией и финальным XA-решением управляет registerer.
 
 HTTP-сервер предоставляет /healthz. Relay публикует доменные события в exchange domain-event; сервис не создаёт собственную очередь.
 

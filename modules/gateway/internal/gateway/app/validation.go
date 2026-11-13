@@ -44,6 +44,7 @@ func validateMutation(m *pb.HeaderMutation, trailer bool) error {
 	}
 	return nil
 }
+
 func validateDecision(d *pb.InterceptResponse, phase string, route *config.Route, mode config.ProcessingMode) error {
 	if d == nil || d.Result == nil {
 		return errors.New("empty decision")

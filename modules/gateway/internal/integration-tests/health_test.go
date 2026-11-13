@@ -43,6 +43,7 @@ routes: [{pattern: '^/', directResponse: {status: 200, inlineString: ok}}]
 		require.FailNow(t, "shutdown blocked")
 	}
 }
+
 func waitStatus(t *testing.T, client *http.Client, address string, status int) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)

@@ -1,0 +1,62 @@
+openapi: 3.0.0
+info: { version: 1.0.0, title: Shortlink public API, x-api-identifier: shortlinkpublicapi }
+paths:
+  /api/shortlink/v1/links:
+    get:
+      operationId: listLinks
+      parameters: [ { $ref: '#/components/parameters/authUser' } ]
+      responses:
+        '200': { description: Links, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/link' } } } } }
+        '503': { $ref: '#/components/responses/unavailable' }
+    post:
+      operationId: createLink
+      parameters: [ { $ref: '#/components/parameters/authUser' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/createLinkInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/link' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/shortlink/v1/links/{linkID}:
+    delete:
+      operationId: deleteLink
+      parameters:
+        - { $ref: '#/components/parameters/authUser' }
+        - { name: linkID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /s/{code}:
+    get:
+      operationId: resolveLink
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string, minLength: 10, maxLength: 10, pattern: '^[A-Za-z0-9]+$' } }
+      responses:
+        '302': { description: Redirect, headers: { Location: { required: true, schema: { type: string, format: uri } } } }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+components:
+  parameters:
+    authUser: { name: X-Auth-User, in: header, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    createLinkInput:
+      type: object
+      required: [targetURL]
+      properties: { targetURL: { type: string, format: uri, maxLength: 2048 } }
+    link:
+      type: object
+      required: [id, code, targetURL, shortPath, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        targetURL: { type: string, format: uri }
+        shortPath: { type: string }
+        createdAt: { type: string, format: date-time }
+    error:
+      type: object
+      required: [message]
+      properties: { message: { type: string } }
+  responses:
+    badRequest: { description: Bad request, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    notFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    unavailable: { description: Unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }

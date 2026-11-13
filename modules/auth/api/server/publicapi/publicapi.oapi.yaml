@@ -4,26 +4,6 @@ info:
   title: Auth service public API
   x-api-identifier: authpublicapi
 paths:
-  /api/public/v1/auth/register:
-    post:
-      operationId: register
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/registerRequest" }
-      responses:
-        "201":
-          description: Registered
-          headers:
-            Set-Cookie:
-              schema: { type: string }
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/authResult" }
-        "400": { $ref: "#/components/responses/badRequest" }
-        "409": { $ref: "#/components/responses/conflict" }
-        "503": { $ref: "#/components/responses/unavailable" }
   /api/public/v1/auth/login:
     post:
       operationId: login
@@ -76,17 +56,6 @@ paths:
         "503": { $ref: "#/components/responses/unavailable" }
 components:
   schemas:
-    registerRequest:
-      type: object
-      required: [ login, password, displayName, firstName, lastName, email, rememberMe ]
-      properties:
-        login: { type: string, minLength: 1 }
-        password: { type: string, minLength: 8, maxLength: 128 }
-        displayName: { type: string, minLength: 1 }
-        firstName: { type: string, minLength: 1 }
-        lastName: { type: string, minLength: 1 }
-        email: { type: string, format: email }
-        rememberMe: { type: boolean }
     loginRequest:
       type: object
       required: [ login, password, rememberMe ]
@@ -123,11 +92,6 @@ components:
           schema: { $ref: "#/components/schemas/error" }
     unauthorized:
       description: Authentication required
-      content:
-        application/json:
-          schema: { $ref: "#/components/schemas/error" }
-    conflict:
-      description: Login already exists
       content:
         application/json:
           schema: { $ref: "#/components/schemas/error" }

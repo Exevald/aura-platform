@@ -27,8 +27,6 @@ type Clock interface {
 
 type SystemClock struct{}
 
-func (SystemClock) Now() time.Time { return time.Now().UTC() }
-
 type AuthService interface {
 	CreateCredential(userID uuid.UUID, login, password string) (Credential, error)
 	EnsureLoginAvailable(login string) error
@@ -56,6 +54,10 @@ func NewAuthService(
 		dispatcher: dispatcher,
 		clock:      clock,
 	}
+}
+
+func (SystemClock) Now() time.Time {
+	return time.Now().UTC()
 }
 
 func (s *authService) CreateCredential(userID uuid.UUID, login, password string) (Credential, error) {
@@ -91,15 +93,6 @@ func (s *authService) CreateCredential(userID uuid.UUID, login, password string)
 	if err = s.repo.Store(credential); err != nil {
 		return Credential{}, err
 	}
-	if err = s.dispatcher.Dispatch(&authevents.UserRegistered{
-		CredentialId:   credential.ID.String(),
-		UserId:         credential.UserID.String(),
-		Login:          credential.Login,
-		OccurredAtUnix: now.Unix(),
-	}); err != nil {
-		return Credential{}, err
-	}
-
 	return credential, nil
 }
 

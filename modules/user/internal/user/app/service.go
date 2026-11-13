@@ -30,6 +30,11 @@ type UserService interface {
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 }
 
+type userService struct {
+	unitOfWork        uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider]
+	dispatcherFactory DispatcherFactory
+}
+
 func NewUserService(
 	unitOfWork uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider],
 	dispatcherFactory DispatcherFactory,
@@ -38,11 +43,6 @@ func NewUserService(
 		unitOfWork:        unitOfWork,
 		dispatcherFactory: dispatcherFactory,
 	}
-}
-
-type userService struct {
-	unitOfWork        uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider]
-	dispatcherFactory DispatcherFactory
 }
 
 func (u *userService) FindUserByEmail(ctx context.Context, email string) (result domain.User, err error) {

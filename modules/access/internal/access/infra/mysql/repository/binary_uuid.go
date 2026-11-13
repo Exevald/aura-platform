@@ -8,10 +8,6 @@ import (
 
 type binaryUUID uuid.UUID
 
-func newBinaryUUID(id uuid.UUID) binaryUUID {
-	return binaryUUID(id)
-}
-
 func (id binaryUUID) UUID() uuid.UUID {
 	return uuid.UUID(id)
 }
@@ -30,4 +26,8 @@ func (id *binaryUUID) Scan(value any) error {
 	}
 	copy(id[:], data)
 	return nil
+}
+
+func newBinaryUUID(id uuid.UUID) binaryUUID {
+	return binaryUUID(id)
 }

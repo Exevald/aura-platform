@@ -6,6 +6,8 @@ import (
 	"uuid"
 )
 
+const AuthMethodPassword AuthMethod = "password"
+
 var (
 	ErrCredentialNotFound = errors.New("credential not found")
 	ErrCredentialExists   = errors.New("credential already exists")
@@ -15,8 +17,6 @@ var (
 )
 
 type AuthMethod string
-
-const AuthMethodPassword AuthMethod = "password"
 
 type Credential struct {
 	ID           uuid.UUID

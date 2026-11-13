@@ -4,6 +4,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	fileinternalapi "filestorage/api/server/internalapi"
 	userinternalapi "user/api/server/internalapi"
 
 	"editor/internal/editor/app"
@@ -17,4 +18,12 @@ func newUserClient(conf config.Env) (app.UserClient, *grpc.ClientConn, error) {
 		return nil, nil, err
 	}
 	return clientinfra.NewUser(userinternalapi.NewUserServiceClient(c), conf.Dependencies.Timeout), c, nil
+}
+
+func newFilestorageClient(conf config.Env) (app.FileStorage, *grpc.ClientConn, error) {
+	c, err := grpc.NewClient(conf.Dependencies.FilestorageAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, nil, err
+	}
+	return clientinfra.NewFilestorage(fileinternalapi.NewFilestorageServiceClient(c), conf.Dependencies.Timeout), c, nil
 }

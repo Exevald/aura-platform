@@ -48,12 +48,19 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 
 	dispatcherFactory := eventinfra.NewDispatcherFactory(appID, dispatcher)
 	svc := app.NewUserService(db.unit, dispatcherFactory)
+
+	err = db.xa.Validate(ctx)
+	if err != nil {
+		return err
+	}
+
+	registration := app.NewRegistrationParticipant(db.xa, dispatcherFactory)
 	httpServer, err := newHTTPServer(conf)
 	if err != nil {
 		return err
 	}
 
-	grpcServer, err := newGRPCServer(conf, svc)
+	grpcServer, err := newGRPCServer(conf, svc, registration)
 	if err != nil {
 		return err
 	}

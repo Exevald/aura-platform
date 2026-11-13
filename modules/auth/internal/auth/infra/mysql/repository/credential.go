@@ -19,6 +19,16 @@ type credentialRepository struct {
 	client mysql.ClientContext
 }
 
+type credentialRow struct {
+	ID           binaryUUID        `db:"id"`
+	UserID       binaryUUID        `db:"user_id"`
+	Login        string            `db:"login"`
+	PasswordHash string            `db:"password_hash"`
+	Method       domain.AuthMethod `db:"method"`
+	CreatedAt    time.Time         `db:"created_at"`
+	UpdatedAt    time.Time         `db:"updated_at"`
+}
+
 func NewCredentialRepository(
 	ctx context.Context,
 	client mysql.ClientContext,
@@ -121,6 +131,12 @@ func (r *credentialRepository) FindByUserID(userID uuid.UUID) (domain.Credential
 	return r.find("find-credential-by-user-id", query, newBinaryUUID(userID))
 }
 
+func (r *credentialRepository) Delete(id uuid.UUID) error {
+	const query = `UPDATE credential SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL`
+	_, err := r.client.ExecContext(r.ctx, "delete-credential", query, newBinaryUUID(id))
+	return errors.WithStack(err)
+}
+
 func (r *credentialRepository) find(name, query string, arg any) (domain.Credential, error) {
 	var row credentialRow
 	err := r.client.GetContext(r.ctx, name, &row, query, arg)
@@ -132,22 +148,6 @@ func (r *credentialRepository) find(name, query string, arg any) (domain.Credent
 	}
 
 	return row.toDomainModel(), nil
-}
-
-func (r *credentialRepository) Delete(id uuid.UUID) error {
-	const query = `UPDATE credential SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL`
-	_, err := r.client.ExecContext(r.ctx, "delete-credential", query, newBinaryUUID(id))
-	return errors.WithStack(err)
-}
-
-type credentialRow struct {
-	ID           binaryUUID        `db:"id"`
-	UserID       binaryUUID        `db:"user_id"`
-	Login        string            `db:"login"`
-	PasswordHash string            `db:"password_hash"`
-	Method       domain.AuthMethod `db:"method"`
-	CreatedAt    time.Time         `db:"created_at"`
-	UpdatedAt    time.Time         `db:"updated_at"`
 }
 
 func (r *credentialRow) toDomainModel() domain.Credential {

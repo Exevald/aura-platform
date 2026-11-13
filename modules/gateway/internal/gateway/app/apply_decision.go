@@ -51,6 +51,7 @@ func applyDecision(x *exchange, phase string, response *http.Response, body []by
 	applyBody(x, phase, response, replacement)
 	return replacement
 }
+
 func applyBody(x *exchange, phase string, response *http.Response, body []byte) {
 	if response == nil {
 		replaceRequestBody(x.request, body, true)

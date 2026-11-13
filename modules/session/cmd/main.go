@@ -21,28 +21,6 @@ type application struct {
 	conf   config.Env
 }
 
-func main() {
-	if err := runMain(); err != nil {
-		os.Exit(1)
-	}
-}
-
-func runMain() error {
-	ctx, stop := runtime.ListenOSKillSignalsContext(context.Background())
-	defer stop()
-	a := &application{
-		logger: logging.New(logging.Config{
-			AppID: appID,
-		}),
-	}
-	if err := a.command().Run(ctx, os.Args); err != nil {
-		a.logger.Error("stopped with error", logging.Error(err))
-		return err
-	}
-	a.logger.Info("stopped successfully")
-	return nil
-}
-
 func (a *application) command() *cli.Command {
 	return &cli.Command{
 		Name:           appID,
@@ -71,4 +49,26 @@ func (a *application) command() *cli.Command {
 			a.serviceCmd(),
 		},
 	}
+}
+
+func main() {
+	if err := runMain(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func runMain() error {
+	ctx, stop := runtime.ListenOSKillSignalsContext(context.Background())
+	defer stop()
+	a := &application{
+		logger: logging.New(logging.Config{
+			AppID: appID,
+		}),
+	}
+	if err := a.command().Run(ctx, os.Args); err != nil {
+		a.logger.Error("stopped with error", logging.Error(err))
+		return err
+	}
+	a.logger.Info("stopped successfully")
+	return nil
 }

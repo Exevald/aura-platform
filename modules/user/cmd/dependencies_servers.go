@@ -19,12 +19,12 @@ func newHTTPServer(conf config.Env) (*http.Server, error) {
 	})
 }
 
-func newGRPCServer(conf config.Env, svc app.UserService) (*grpc.Server, error) {
+func newGRPCServer(conf config.Env, svc app.UserService, registration app.RegistrationParticipant) (*grpc.Server, error) {
 	return grpc.NewServer(grpc.Config{
 		Address:      conf.GRPC.Address,
 		GraceTimeout: conf.App.GraceTimeout,
 	}, func(server *grpcserver.Server) error {
-		userinternalapi.RegisterUserServiceServer(server, internalhandler.NewHandler(svc))
+		userinternalapi.RegisterUserServiceServer(server, internalhandler.NewHandler(svc, registration))
 		reflection.Register(server)
 		return nil
 	})

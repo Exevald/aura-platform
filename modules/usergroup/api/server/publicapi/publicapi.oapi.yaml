@@ -1,0 +1,104 @@
+openapi: 3.0.0
+info: { version: 1.0.0, title: User group public API, x-api-identifier: usergrouppublicapi }
+paths:
+  /api/usergroups/v1/groups:
+    parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' } ]
+    get:
+      operationId: listGroups
+      responses:
+        '200': { description: Groups, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/group' } } } } }
+        '503': { $ref: '#/components/responses/unavailable' }
+    post:
+      operationId: createGroup
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/groupInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/group' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/usergroups/v1/groups/{groupID}:
+    parameters:
+      - { $ref: '#/components/parameters/authUser' }
+      - { $ref: '#/components/parameters/workspace' }
+      - { $ref: '#/components/parameters/groupID' }
+    get:
+      operationId: getGroup
+      responses:
+        '200': { description: Group, content: { application/json: { schema: { $ref: '#/components/schemas/group' } } } }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+    put:
+      operationId: updateGroup
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/groupInput' } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/group' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+    delete:
+      operationId: deleteGroup
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/usergroups/v1/groups/{groupID}/members:
+    parameters:
+      - { $ref: '#/components/parameters/authUser' }
+      - { $ref: '#/components/parameters/workspace' }
+      - { $ref: '#/components/parameters/groupID' }
+    post:
+      operationId: addGroupMember
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/memberInput' } } } }
+      responses:
+        '200': { description: Updated group, content: { application/json: { schema: { $ref: '#/components/schemas/group' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/usergroups/v1/groups/{groupID}/members/{userID}:
+    delete:
+      operationId: removeGroupMember
+      parameters:
+        - { $ref: '#/components/parameters/authUser' }
+        - { $ref: '#/components/parameters/workspace' }
+        - { $ref: '#/components/parameters/groupID' }
+        - { name: userID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+components:
+  parameters:
+    authUser: { name: X-Auth-User, in: header, required: true, schema: { type: string, format: uuid } }
+    workspace: { name: X-Workspace-ID, in: header, required: true, schema: { type: string, format: uuid } }
+    groupID: { name: groupID, in: path, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    groupInput:
+      type: object
+      required: [name]
+      properties: { name: { type: string, minLength: 1, maxLength: 120 } }
+    memberInput:
+      type: object
+      required: [email]
+      properties: { email: { type: string, format: email } }
+    member:
+      type: object
+      required: [userID, email, displayName]
+      properties:
+        userID: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+    group:
+      type: object
+      required: [id, workspaceID, ownerUserID, name, members, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        workspaceID: { type: string, format: uuid }
+        ownerUserID: { type: string, format: uuid }
+        name: { type: string }
+        members: { type: array, items: { $ref: '#/components/schemas/member' } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    error: { type: object, required: [message], properties: { message: { type: string } } }
+  responses:
+    badRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    notFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    unavailable: { description: Service unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }

@@ -2,11 +2,37 @@ package domain
 
 import (
 	"testing"
+	"time"
 
 	"uuid"
 )
 
 type auditRepoStub struct{ records []AuditRecord }
+
+func TestRecordIsIdempotentByEventID(t *testing.T) {
+	repo := &auditRepoStub{}
+	service := NewAuditService(repo)
+	record := AuditRecord{
+		EventID:   "event-1",
+		EventType: "UserRegistered",
+		Producer:  "auth",
+	}
+	now := time.Date(2026, time.November, 13, 12, 0, 0, 0, time.UTC)
+	first, err := service.Record(record, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.Record(record, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second || len(repo.records) != 1 {
+		t.Fatal("duplicate event created more than one record")
+	}
+	if !repo.records[0].ReceivedAt.Equal(now) {
+		t.Fatal("record time did not match supplied time")
+	}
+}
 
 func (r *auditRepoStub) NextID() (uuid.UUID, error) {
 	return uuid.New(), nil
@@ -33,25 +59,4 @@ func (r *auditRepoStub) FindByEventID(id string) (AuditRecord, error) {
 		}
 	}
 	return AuditRecord{}, ErrAuditRecordNotFound
-}
-
-func TestRecordIsIdempotentByEventID(t *testing.T) {
-	repo := &auditRepoStub{}
-	service := NewAuditService(repo)
-	record := AuditRecord{
-		EventID:   "event-1",
-		EventType: "UserRegistered",
-		Producer:  "auth",
-	}
-	first, err := service.Record(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := service.Record(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != second || len(repo.records) != 1 {
-		t.Fatal("duplicate event created more than one record")
-	}
 }

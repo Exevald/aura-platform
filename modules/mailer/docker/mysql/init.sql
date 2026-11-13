@@ -1,0 +1,3 @@
+CREATE DATABASE IF NOT EXISTS `mailer` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'mailer'@'%' IDENTIFIED BY 'mailer';
+GRANT ALL PRIVILEGES ON `mailer`.* TO 'mailer'@'%';

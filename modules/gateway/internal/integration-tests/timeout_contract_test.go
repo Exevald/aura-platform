@@ -51,6 +51,7 @@ routes:
 		}
 	}
 }
+
 func TestIdleTimeoutWaitsForUploadCompletion(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -82,6 +83,7 @@ func TestIdleTimeoutWaitsForUploadCompletion(t *testing.T) {
 	require.Equal(t, 200, response.StatusCode)
 	require.Equal(t, "done", string(body))
 }
+
 func TestInterceptorTimeoutExplicitDisableAndCancellation(t *testing.T) {
 	for _, transport := range []string{grpcTransport, restTransport} {
 		t.Run(transport, func(t *testing.T) {

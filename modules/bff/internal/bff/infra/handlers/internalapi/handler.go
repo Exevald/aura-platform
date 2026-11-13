@@ -12,17 +12,17 @@ import (
 	"bff/internal/bff/app"
 )
 
+type handler struct {
+	svc    *app.Service
+	logger *slog.Logger
+	bffinternalapi.UnimplementedBffServiceServer
+}
+
 func NewHandler(svc *app.Service, logger *slog.Logger) bffinternalapi.BffServiceServer {
 	return &handler{
 		svc:    svc,
 		logger: logger,
 	}
-}
-
-type handler struct {
-	svc    *app.Service
-	logger *slog.Logger
-	bffinternalapi.UnimplementedBffServiceServer
 }
 
 func (h handler) Echo(ctx context.Context, req *bffinternalapi.EchoRequest) (*bffinternalapi.EchoResponse, error) {

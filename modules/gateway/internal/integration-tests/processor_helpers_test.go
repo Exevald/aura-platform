@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+const allProcessing = "{requestBody: buffered, responseHeaders: true, responseBody: buffered, requestTrailers: true, responseTrailers: true}"
+
 func processorServer(t *testing.T, transport string, f interceptorFunc) string {
 	t.Helper()
 	if transport == grpcTransport {
@@ -50,6 +52,7 @@ func processorServer(t *testing.T, transport string, f interceptorFunc) string {
 	})
 	return s.URL
 }
+
 func interceptedGateway(t *testing.T, upstream, mode, routeFields string, transports []string, processors ...interceptorFunc) *httptest.Server {
 	t.Helper()
 	var yaml strings.Builder
@@ -63,6 +66,7 @@ func interceptedGateway(t *testing.T, upstream, mode, routeFields string, transp
 	}
 	return gateway(t, yaml.String())
 }
+
 func eventPhase(r *pb.InterceptRequest) string {
 	switch {
 	case r.GetRequestHeaders() != nil:
@@ -81,5 +85,3 @@ func eventPhase(r *pb.InterceptRequest) string {
 		return "unknown"
 	}
 }
-
-const allProcessing = "{requestBody: buffered, responseHeaders: true, responseBody: buffered, requestTrailers: true, responseTrailers: true}"

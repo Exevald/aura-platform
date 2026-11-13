@@ -12,6 +12,7 @@ import (
 type Proxy interface {
 	Forward(http.ResponseWriter, *http.Request, *config.Route, func(*http.Response) error, func(error))
 }
+
 type Gateway struct {
 	conf     *config.Config
 	clients  map[string]Interceptor

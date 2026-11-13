@@ -52,6 +52,7 @@ routes:
 	require.Zero(t, intermediateCalls.Load())
 	require.EqualValues(t, 1, finalCalls.Load())
 }
+
 func TestPatternsHostAndHeaderConjunction(t *testing.T) {
 	s := gateway(t, `kind: gateway/service/v1
 name: routes
@@ -79,6 +80,7 @@ routes:
 		})
 	}
 }
+
 func TestAddHeadersSuccessAlwaysLiteralAndMismatch(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Always", "upstream")
@@ -115,6 +117,7 @@ routes:
 		}
 	}
 }
+
 func TestExternalErrorPagesSeeGatewayFailures(t *testing.T) {
 	var observed atomic.Int32
 	pages := grpcServer(t, func(_ context.Context, r *pb.InterceptRequest) (*pb.InterceptResponse, error) {

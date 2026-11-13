@@ -33,6 +33,7 @@ func encodeEvent(request *pb.InterceptRequest) ([]byte, error) {
 	}{phase, fields["context"], event}
 	return json.Marshal(payload)
 }
+
 func decodeDecision(b []byte, schema *openapi3.Schema) (*pb.InterceptResponse, error) {
 	var raw any
 	if err := json.Unmarshal(b, &raw); err != nil {

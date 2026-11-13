@@ -1,0 +1,33 @@
+services:
+  calendar-service:
+    image: distributed-programming-calendar:local
+    build:
+      context: ./modules/calendar
+      dockerfile: Dockerfile
+    environment:
+      CALENDAR_MYSQL_ADDRESS: mysql:3306
+      CALENDAR_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${CALENDAR_GRPC_PORT:-8081}:8081"
+      - "${CALENDAR_HTTP_PORT:-8082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  calendar-message-handler:
+    image: distributed-programming-calendar:local
+    command: [message-handler]
+    environment:
+      CALENDAR_MYSQL_ADDRESS: mysql:3306
+      CALENDAR_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${CALENDAR_MESSAGE_HANDLER_PORT:-8083}:8082"
+    depends_on:
+      calendar-service:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy

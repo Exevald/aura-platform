@@ -1,0 +1,33 @@
+services:
+  planner-service:
+    image: distributed-programming-planner:local
+    build:
+      context: ./modules/planner
+      dockerfile: Dockerfile
+    environment:
+      PLANNER_MYSQL_ADDRESS: mysql:3306
+      PLANNER_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${PLANNER_GRPC_PORT:-8081}:8081"
+      - "${PLANNER_HTTP_PORT:-8082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  planner-message-handler:
+    image: distributed-programming-planner:local
+    command: [message-handler]
+    environment:
+      PLANNER_MYSQL_ADDRESS: mysql:3306
+      PLANNER_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${PLANNER_MESSAGE_HANDLER_PORT:-8083}:8082"
+    depends_on:
+      planner-service:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy

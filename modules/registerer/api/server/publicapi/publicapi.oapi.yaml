@@ -1,0 +1,70 @@
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: Registerer service public API
+  x-api-identifier: registererpublicapi
+paths:
+  /api/public/v1/registerer/register:
+    post:
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/registerRequest" }
+      responses:
+        "201":
+          description: Registered
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/registerResult" }
+        "400": { $ref: "#/components/responses/badRequest" }
+        "409": { $ref: "#/components/responses/conflict" }
+        "503": { $ref: "#/components/responses/unavailable" }
+components:
+  schemas:
+    registerRequest:
+      type: object
+      required: [ login, password, displayName, firstName, lastName, email, rememberMe ]
+      properties:
+        login: { type: string, minLength: 1 }
+        password: { type: string, minLength: 8, maxLength: 128 }
+        displayName: { type: string, minLength: 1 }
+        firstName: { type: string, minLength: 1 }
+        lastName: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        rememberMe: { type: boolean }
+    registerResult:
+      type: object
+      required: [ userID, authenticated ]
+      properties:
+        userID: { type: string, format: uuid }
+        authenticated: { type: boolean }
+        expiresAt: { type: string, format: date-time }
+    error:
+      type: object
+      required: [ message ]
+      properties:
+        message: { type: string }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+  responses:
+    badRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/error" }
+    conflict:
+      description: Login or email already exists
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/error" }
+    unavailable:
+      description: Dependency unavailable
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/error" }

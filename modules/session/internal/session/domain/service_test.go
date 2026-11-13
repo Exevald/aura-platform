@@ -15,48 +15,12 @@ type sessionClock struct {
 	now time.Time
 }
 
-func (c *sessionClock) Now() time.Time {
-	return c.now
-}
-
 type mockSessionRepository struct {
 	sessions map[uuid.UUID]Session
 }
 
-func (r *mockSessionRepository) NextID() (uuid.UUID, error) {
-	return uuid.New(), nil
-}
-
-func (r *mockSessionRepository) Store(session Session) error {
-	r.sessions[session.ID] = session
-	return nil
-}
-
-func (r *mockSessionRepository) Find(id uuid.UUID) (Session, error) {
-	session, ok := r.sessions[id]
-	if !ok {
-		return Session{}, ErrSessionNotFound
-	}
-	return session, nil
-}
-
-func (r *mockSessionRepository) FindActiveByUser(userID uuid.UUID) ([]Session, error) {
-	var sessions []Session
-	for _, session := range r.sessions {
-		if session.UserID == userID && session.Status == SessionActive {
-			sessions = append(sessions, session)
-		}
-	}
-	return sessions, nil
-}
-
 type sessionDispatcherFake struct {
 	messages []proto.Message
-}
-
-func (d *sessionDispatcherFake) Dispatch(message proto.Message) error {
-	d.messages = append(d.messages, message)
-	return nil
 }
 
 func TestSessionServiceUsesSelectedLifetime(t *testing.T) {
@@ -103,4 +67,40 @@ func TestSessionServiceValidateAndRevokeAll(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, SessionRevoked, repo.sessions[id].Status)
 	require.IsType(t, &sessionevents.SessionRevoked{}, dispatcher.messages[1])
+}
+
+func (c *sessionClock) Now() time.Time {
+	return c.now
+}
+
+func (r *mockSessionRepository) NextID() (uuid.UUID, error) {
+	return uuid.New(), nil
+}
+
+func (r *mockSessionRepository) Store(session Session) error {
+	r.sessions[session.ID] = session
+	return nil
+}
+
+func (r *mockSessionRepository) Find(id uuid.UUID) (Session, error) {
+	session, ok := r.sessions[id]
+	if !ok {
+		return Session{}, ErrSessionNotFound
+	}
+	return session, nil
+}
+
+func (r *mockSessionRepository) FindActiveByUser(userID uuid.UUID) ([]Session, error) {
+	var sessions []Session
+	for _, session := range r.sessions {
+		if session.UserID == userID && session.Status == SessionActive {
+			sessions = append(sessions, session)
+		}
+	}
+	return sessions, nil
+}
+
+func (d *sessionDispatcherFake) Dispatch(message proto.Message) error {
+	d.messages = append(d.messages, message)
+	return nil
 }

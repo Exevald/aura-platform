@@ -1,0 +1,99 @@
+package config
+
+import (
+	"errors"
+	"time"
+)
+
+type Env struct {
+	App          App          `envconfig:"app"`
+	GRPC         GRPC         `envconfig:"grpc"`
+	HTTP         HTTP         `envconfig:"http"`
+	MySQL        MySQL        `envconfig:"mysql"`
+	AMQP         AMQP         `envconfig:"amqp"`
+	Relay        Relay        `envconfig:"relay"`
+	Recovery     Recovery     `envconfig:"recovery"`
+	Dependencies Dependencies `envconfig:"dependencies"`
+	Cookie       Cookie       `envconfig:"cookie"`
+}
+
+type App struct {
+	Debug        bool          `envconfig:"debug"`
+	GraceTimeout time.Duration `envconfig:"grace_timeout" default:"30s"`
+}
+
+type GRPC struct {
+	Address string `envconfig:"address" default:":8081"`
+}
+
+type HTTP struct {
+	Address string `envconfig:"address" default:":8082"`
+}
+
+type MySQL struct {
+	Address               string        `envconfig:"address" default:"localhost:3306"`
+	Database              string        `envconfig:"database" default:"registerer"`
+	User                  string        `envconfig:"user" default:"registerer"`
+	Password              string        `envconfig:"password" default:"registerer"`
+	MaxConnections        int           `envconfig:"max_connections" default:"10"`
+	ConnectionMaxLifeTime time.Duration `envconfig:"connection_max_lifetime" default:"30m"`
+	ConnectionMaxIdleTime time.Duration `envconfig:"connection_max_idle_time" default:"5m"`
+	ConnectTimeout        time.Duration `envconfig:"connect_timeout" default:"5s"`
+	ReadTimeout           time.Duration `envconfig:"read_timeout" default:"10s"`
+	WriteTimeout          time.Duration `envconfig:"write_timeout" default:"10s"`
+}
+
+type AMQP struct {
+	URL            string        `envconfig:"url" default:"amqp://local:local@localhost:5672/"`
+	ConnectTimeout time.Duration `envconfig:"connect_timeout" default:"5s"`
+}
+
+type Relay struct {
+	Interval       time.Duration `envconfig:"interval" default:"1s"`
+	BatchSize      int           `envconfig:"batch_size" default:"100"`
+	PublishTimeout time.Duration `envconfig:"publish_timeout" default:"10s"`
+	LockTimeout    time.Duration `envconfig:"lock_timeout" default:"1s"`
+}
+
+type Recovery struct {
+	Interval  time.Duration `envconfig:"interval" default:"1s"`
+	BatchSize int           `envconfig:"batch_size" default:"100"`
+}
+
+type Dependencies struct {
+	AuthAddress      string        `envconfig:"auth_address" default:"auth-service:8081"`
+	UserAddress      string        `envconfig:"user_address" default:"user-service:8081"`
+	SessionAddress   string        `envconfig:"session_address" default:"session-service:8081"`
+	WorkspaceAddress string        `envconfig:"workspace_address" default:"workspace-service:8081"`
+	AccessAddress    string        `envconfig:"access_address" default:"access-service:8081"`
+	DefaultModuleID  string        `envconfig:"default_module_id" default:"b8547c76-51fd-4f7c-9c68-8f30c84f61cb"`
+	Timeout          time.Duration `envconfig:"timeout" default:"5s"`
+}
+
+type Cookie struct {
+	Name   string `envconfig:"name" default:"aura_session"`
+	Domain string `envconfig:"domain"`
+	Secure bool   `envconfig:"secure" default:"true"`
+}
+
+func (c Env) Validate() error {
+	if c.App.GraceTimeout <= 0 || c.AMQP.ConnectTimeout <= 0 || c.Relay.Interval <= 0 || c.Relay.PublishTimeout <= 0 || c.Relay.LockTimeout < 0 || c.Recovery.Interval <= 0 || c.Dependencies.Timeout <= 0 {
+		return errors.New("timeouts and relay interval must be positive; lock timeout must not be negative")
+	}
+	if c.MySQL.ConnectTimeout <= 0 || c.MySQL.ReadTimeout <= 0 || c.MySQL.WriteTimeout <= 0 || c.MySQL.ConnectionMaxLifeTime < 0 || c.MySQL.ConnectionMaxIdleTime < 0 {
+		return errors.New("MySQL timeouts must be positive; connection lifetimes must not be negative")
+	}
+	if c.MySQL.MaxConnections <= 0 || c.Relay.BatchSize <= 0 || c.Recovery.BatchSize <= 0 {
+		return errors.New("connection and batch counts must be positive")
+	}
+	if c.Dependencies.AuthAddress == "" || c.Dependencies.UserAddress == "" || c.Dependencies.SessionAddress == "" || c.Dependencies.WorkspaceAddress == "" || c.Dependencies.AccessAddress == "" || c.Dependencies.DefaultModuleID == "" {
+		return errors.New("dependency configuration is invalid")
+	}
+	if c.Cookie.Name == "" {
+		return errors.New("cookie name must not be empty")
+	}
+	if c.MySQL.Address == "" || c.MySQL.Database == "" || c.MySQL.User == "" || c.AMQP.URL == "" || c.HTTP.Address == "" || c.GRPC.Address == "" {
+		return errors.New("database, broker and server configuration must not be empty")
+	}
+	return nil
+}

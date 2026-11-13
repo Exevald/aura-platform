@@ -9,14 +9,14 @@ import (
 	"user/internal/user/infra/mysql/repository"
 )
 
+type RepositoryProvider struct {
+	client mysql.ClientContext
+}
+
 func NewRepositoryProvider(client mysql.ClientContext) *RepositoryProvider {
 	return &RepositoryProvider{
 		client: client,
 	}
-}
-
-type RepositoryProvider struct {
-	client mysql.ClientContext
 }
 
 func (p *RepositoryProvider) UserRepository(ctx context.Context) domain.UserRepository {

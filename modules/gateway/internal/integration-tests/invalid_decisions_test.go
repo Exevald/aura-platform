@@ -46,6 +46,7 @@ func TestInvalidRequestDecisionsFailClosed(t *testing.T) {
 		})
 	}
 }
+
 func TestRESTTransportFailuresFailClosed(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -69,4 +70,7 @@ func TestRESTTransportFailuresFailClosed(t *testing.T) {
 		})
 	}
 }
-func ptr[T any](value T) *T { return &value }
+
+func ptr[T any](value T) *T {
+	return &value
+}

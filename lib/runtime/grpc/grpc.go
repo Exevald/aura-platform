@@ -17,6 +17,12 @@ type Config struct {
 
 type RegisterFunc func(*grpc.Server) error
 
+type Server struct {
+	address      string
+	graceTimeout time.Duration
+	srv          *grpc.Server
+}
+
 func NewServer(c Config, registers ...RegisterFunc) (*Server, error) {
 	if c.GraceTimeout <= 0 {
 		return nil, errors.New("gRPC grace timeout must be positive")
@@ -39,12 +45,6 @@ func NewServer(c Config, registers ...RegisterFunc) (*Server, error) {
 		graceTimeout: c.GraceTimeout,
 		srv:          server,
 	}, nil
-}
-
-type Server struct {
-	address      string
-	graceTimeout time.Duration
-	srv          *grpc.Server
 }
 
 func (s *Server) Serve(ctx context.Context) error {

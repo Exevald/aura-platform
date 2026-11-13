@@ -29,6 +29,7 @@ func env(s string) (string, error) {
 	})
 	return s, failure
 }
+
 func expand(v any, secrets map[string]map[string]string) (any, error) {
 	switch x := v.(type) {
 	case string:
@@ -71,6 +72,7 @@ func expand(v any, secrets map[string]map[string]string) (any, error) {
 	}
 	return v, nil
 }
+
 func decode(v, dst any, secrets map[string]map[string]string) error {
 	value, err := expand(v, secrets)
 	if err != nil {

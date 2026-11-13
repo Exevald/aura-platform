@@ -22,6 +22,35 @@ import (
 	"google.golang.org/grpc"
 )
 
+const multiHeader = "X-Multi"
+const responseLimitScenario = "response-limit"
+const jsonHeaderKey = "key"
+
+const jsonSet = "set"
+const timeoutScenario = "timeout"
+
+const authorizationHeader = "Authorization"
+
+const jsonHeaderValues = "values"
+
+const grpcTransport = "grpc"
+
+const restTransport = "rest"
+
+const firstPatternPath = "/one"
+
+const tenantHost = "tenant.example"
+
+type interceptorFunc func(context.Context, *pb.InterceptRequest) (*pb.InterceptResponse, error)
+type grpcInterceptor struct {
+	pb.UnimplementedInterceptorServer
+	f interceptorFunc
+}
+
+func (s *grpcInterceptor) Intercept(ctx context.Context, r *pb.InterceptRequest) (*pb.InterceptResponse, error) {
+	return s.f(ctx, r)
+}
+
 func load(t *testing.T, yaml string) *config.Config {
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "config.yaml")
@@ -32,6 +61,7 @@ func load(t *testing.T, yaml string) *config.Config {
 
 	return c
 }
+
 func gateway(t *testing.T, yaml string) *httptest.Server {
 	t.Helper()
 	r, err := server.New(load(t, yaml))
@@ -46,6 +76,7 @@ func gateway(t *testing.T, yaml string) *httptest.Server {
 	t.Cleanup(s.Close)
 	return s
 }
+
 func request(t *testing.T, s *httptest.Server, method, path, body string, headers http.Header) (statusCode int, responseHeaders http.Header, responseBody string) {
 	t.Helper()
 	req, err := http.NewRequest(method, s.URL+path, strings.NewReader(body))
@@ -68,15 +99,6 @@ func request(t *testing.T, s *httptest.Server, method, path, body string, header
 	return response.StatusCode, response.Header, string(data)
 }
 
-type interceptorFunc func(context.Context, *pb.InterceptRequest) (*pb.InterceptResponse, error)
-type grpcInterceptor struct {
-	pb.UnimplementedInterceptorServer
-	f interceptorFunc
-}
-
-func (s *grpcInterceptor) Intercept(ctx context.Context, r *pb.InterceptRequest) (*pb.InterceptResponse, error) {
-	return s.f(ctx, r)
-}
 func grpcServer(t *testing.T, f interceptorFunc) string {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -88,12 +110,15 @@ func grpcServer(t *testing.T, f interceptorFunc) string {
 	t.Cleanup(s.Stop)
 	return l.Addr().String()
 }
+
 func ok(m *pb.ContinueResponse) *pb.InterceptResponse {
 	return &pb.InterceptResponse{Result: &pb.InterceptResponse_ContinueResponse{ContinueResponse: m}}
 }
+
 func set(key string, values ...string) *pb.HeaderMutation {
 	return &pb.HeaderMutation{Set: []*pb.HeaderValues{{Key: key, Values: values}}}
 }
+
 func getHeader(headers []*pb.Header, key string) string {
 	for _, h := range headers {
 		if strings.EqualFold(h.Key, key) {
@@ -102,6 +127,7 @@ func getHeader(headers []*pb.Header, key string) string {
 	}
 	return ""
 }
+
 func restServer(t *testing.T, f func(map[string]any) any) *httptest.Server {
 	t.Helper()
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -119,22 +145,3 @@ func restServer(t *testing.T, f func(map[string]any) any) *httptest.Server {
 	t.Cleanup(s.Close)
 	return s
 }
-
-const multiHeader = "X-Multi"
-const responseLimitScenario = "response-limit"
-const jsonHeaderKey = "key"
-
-const jsonSet = "set"
-const timeoutScenario = "timeout"
-
-const authorizationHeader = "Authorization"
-
-const jsonHeaderValues = "values"
-
-const grpcTransport = "grpc"
-
-const restTransport = "rest"
-
-const firstPatternPath = "/one"
-
-const tenantHost = "tenant.example"

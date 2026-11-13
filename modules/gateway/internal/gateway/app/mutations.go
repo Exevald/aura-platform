@@ -27,11 +27,13 @@ func applyHeaders(h http.Header, m *pb.HeaderMutation) {
 		}
 	}
 }
+
 func clearFraming(h http.Header) {
 	for _, k := range []string{"Content-Length", "Transfer-Encoding", "Trailer", "ETag", "Content-MD5", "Digest"} {
 		h.Del(k)
 	}
 }
+
 func replaceRequestBody(req *http.Request, body []byte, mutation bool) {
 	if req.Body != nil {
 		_ = req.Body.Close()
@@ -44,6 +46,7 @@ func replaceRequestBody(req *http.Request, body []byte, mutation bool) {
 		req.Trailer = make(http.Header)
 	}
 }
+
 func replaceResponseBody(response *http.Response, body []byte) {
 	if response.Body != nil {
 		_ = response.Body.Close()

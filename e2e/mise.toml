@@ -1,0 +1,29 @@
+[tasks.all]
+run = [
+    { task = "modules" },
+    { task = "integration-tests" },
+    { task = "lint" },
+]
+
+[tasks.modules]
+run = "go mod tidy"
+
+[tasks.build-images]
+run = [
+    "mise run //modules/user:build",
+    "mise run //modules/access:build",
+    "mise run //modules/session:build",
+    "mise run //modules/auth:build",
+	"mise run //modules/registerer:build",
+    "docker build --tag distributed-programming-user:e2e ../modules/user",
+    "docker build --tag distributed-programming-access:e2e ../modules/access",
+    "docker build --tag distributed-programming-session:e2e ../modules/session",
+	"docker build --tag distributed-programming-auth:e2e ../modules/auth",
+]
+
+[tasks.integration-tests]
+depends = ["build-images"]
+run = "go test -v -count=1 -timeout=8m ./..."
+
+[tasks.lint]
+run = "golangci-lint run"

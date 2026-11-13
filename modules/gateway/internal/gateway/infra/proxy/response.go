@@ -10,6 +10,12 @@ import (
 // response's trailers. Keep that response separate from processor mutations.
 type responseTransport struct{ base http.RoundTripper }
 
+type trailerBody struct {
+	io.ReadCloser
+	upstream *http.Response
+	response *http.Response
+}
+
 func (t responseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	upstream, err := t.base.RoundTrip(req)
 	if err != nil {
@@ -30,12 +36,6 @@ func (t responseTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	response.Body = &trailerBody{ReadCloser: upstream.Body, upstream: upstream, response: response}
 	return response, nil
-}
-
-type trailerBody struct {
-	io.ReadCloser
-	upstream *http.Response
-	response *http.Response
 }
 
 func (b *trailerBody) Read(p []byte) (int, error) {

@@ -1,0 +1,33 @@
+syntax = "proto3";
+package mailerInternalAPI;
+
+option go_package = "/.;mailerinternalapi";
+
+service MailerService {
+  rpc SendMail(SendMailRequest) returns (SendMailResponse);
+  rpc GetMail(GetMailRequest) returns (MailResponse);
+}
+
+message SendMailRequest {
+  string idempotency_key = 1;
+  string recipient = 2;
+  string subject = 3;
+  string body = 4;
+}
+
+message SendMailResponse {
+  string mail_id = 1;
+  string status = 2;
+  bool created = 3;
+}
+
+message GetMailRequest { string mail_id = 1; }
+
+message MailResponse {
+  string mail_id = 1;
+  string recipient = 2;
+  string subject = 3;
+  string status = 4;
+  int32 attempts = 5;
+  string last_error = 6;
+}

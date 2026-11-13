@@ -9,14 +9,14 @@ import (
 	"auth/internal/auth/infra/mysql/repository"
 )
 
+type RepositoryProvider struct {
+	client mysql.ClientContext
+}
+
 func NewRepositoryProvider(client mysql.ClientContext) *RepositoryProvider {
 	return &RepositoryProvider{
 		client: client,
 	}
-}
-
-type RepositoryProvider struct {
-	client mysql.ClientContext
 }
 
 func (p *RepositoryProvider) Credential(ctx context.Context) domain.CredentialRepository {

@@ -3,42 +3,54 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"editor/internal/editor/domain/model"
 	stderrors "errors"
 	"uuid"
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/mysql"
 	"github.com/pkg/errors"
-
-	"editor/internal/editor/domain"
 )
-
-func NewDocument(ctx context.Context, client mysql.ClientContext) domain.DocumentRepository {
-	return &documentRepository{
-		ctx:    ctx,
-		client: client,
-	}
-}
 
 type documentRepository struct {
 	ctx    context.Context
 	client mysql.ClientContext
 }
 
+type documentRow struct {
+	ID          uuid.UUID      `db:"id"`
+	OwnerUserID uuid.UUID      `db:"owner_user_id"`
+	WorkspaceID uuid.UUID      `db:"workspace_id"`
+	Title       string         `db:"title"`
+	Content     string         `db:"content"`
+	Version     int64          `db:"version"`
+	CreatedAt   sql.NullTime   `db:"created_at"`
+	UpdatedAt   sql.NullTime   `db:"updated_at"`
+	Role        sql.NullString `db:"role"`
+}
+
+func NewDocument(ctx context.Context, client mysql.ClientContext) model.DocumentRepository {
+	return &documentRepository{
+		ctx:    ctx,
+		client: client,
+	}
+}
+
 func (*documentRepository) NextID() (uuid.UUID, error) {
 	return uuid.New(), nil
 }
 
-func (r *documentRepository) Create(d domain.Document) error {
+func (r *documentRepository) Create(d model.Document) error {
 	const query = `
 		INSERT INTO document(
 			 id,
 			 owner_user_id,
+			 workspace_id,
 			 title,
 			 content,
 			 version,
 			 created_at,
 			 updated_at) 
-		VALUES (?,?,?,?,?,?,?)
+		VALUES (?,?,?,?,?,?,?,?)
 	`
 	_, err := r.client.ExecContext(
 		r.ctx,
@@ -46,6 +58,7 @@ func (r *documentRepository) Create(d domain.Document) error {
 		query,
 		d.ID,
 		d.OwnerUserID,
+		d.WorkspaceID,
 		d.Title,
 		d.Content,
 		d.Version,
@@ -55,11 +68,12 @@ func (r *documentRepository) Create(d domain.Document) error {
 	return errors.WithStack(err)
 }
 
-func (r *documentRepository) Find(id uuid.UUID) (domain.Document, error) {
+func (r *documentRepository) Find(id uuid.UUID) (model.Document, error) {
 	const query = `
 		SELECT 
 		    id,
 		    owner_user_id,
+		    workspace_id,
 		    title,
 		    content,
 		    version,
@@ -71,16 +85,17 @@ func (r *documentRepository) Find(id uuid.UUID) (domain.Document, error) {
 	var row documentRow
 	err := r.client.GetContext(r.ctx, "document.find", &row, query, id)
 	if stderrors.Is(err, sql.ErrNoRows) {
-		return domain.Document{}, domain.ErrDocumentNotFound
+		return model.Document{}, model.ErrDocumentNotFound
 	}
 	return convertToDomainModel(row), err
 }
 
-func (r *documentRepository) ListForUser(userID uuid.UUID) ([]domain.Document, error) {
+func (r *documentRepository) ListForUser(userID, workspaceID uuid.UUID) ([]model.Document, error) {
 	const query = `
 		SELECT 
 		    d.id,
 		    d.owner_user_id,
+		    d.workspace_id,
 		    d.title,
 		    d.content,
 		    d.version,
@@ -94,7 +109,7 @@ func (r *documentRepository) ListForUser(userID uuid.UUID) ([]domain.Document, e
 		FROM document d 
 		LEFT JOIN document_permission p 
 		    ON p.document_id=d.id AND p.user_id=? 
-		WHERE d.owner_user_id=? OR p.user_id=? 
+		WHERE d.workspace_id=? AND (d.owner_user_id=? OR p.user_id=?)
 		ORDER BY d.updated_at DESC
 	`
 	var rows []documentRow
@@ -105,20 +120,21 @@ func (r *documentRepository) ListForUser(userID uuid.UUID) ([]domain.Document, e
 		query,
 		userID,
 		userID,
+		workspaceID,
 		userID,
 		userID,
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	result := make([]domain.Document, 0, len(rows))
+	result := make([]model.Document, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, convertToDomainModel(row))
 	}
 	return result, nil
 }
 
-func (r *documentRepository) Update(d domain.Document, expected int64) error {
+func (r *documentRepository) Update(d model.Document, expected int64) error {
 	const query = `
 		UPDATE document 
 		SET title=?,content=?,version=?,updated_at=? 
@@ -143,7 +159,7 @@ func (r *documentRepository) Update(d domain.Document, expected int64) error {
 		return err
 	}
 	if n == 0 {
-		return domain.ErrVersionConflict
+		return model.ErrVersionConflict
 	}
 	return nil
 }
@@ -156,22 +172,22 @@ func (r *documentRepository) Delete(id uuid.UUID) error {
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return domain.ErrDocumentNotFound
+		return model.ErrDocumentNotFound
 	}
 	return nil
 }
 
-func (r *documentRepository) FindRole(documentID, userID uuid.UUID) (domain.Role, error) {
+func (r *documentRepository) FindRole(documentID, userID uuid.UUID) (model.Role, error) {
 	const query = `SELECT role FROM document_permission WHERE document_id=? AND user_id=?`
 	var role string
 	err := r.client.GetContext(r.ctx, "permission.find", &role, query, documentID, userID)
 	if stderrors.Is(err, sql.ErrNoRows) {
-		return "", domain.ErrDocumentNotFound
+		return "", model.ErrDocumentNotFound
 	}
-	return domain.Role(role), err
+	return model.Role(role), err
 }
 
-func (r *documentRepository) ListPermissions(documentID uuid.UUID) ([]domain.Permission, error) {
+func (r *documentRepository) ListPermissions(documentID uuid.UUID) ([]model.Permission, error) {
 	const query = `
 		SELECT 
 		    document_id,
@@ -194,14 +210,14 @@ func (r *documentRepository) ListPermissions(documentID uuid.UUID) ([]domain.Per
 	if err != nil {
 		return nil, err
 	}
-	result := make([]domain.Permission, 0, len(rows))
+	result := make([]model.Permission, 0, len(rows))
 	for _, v := range rows {
 		result = append(
 			result,
-			domain.Permission{
+			model.Permission{
 				DocumentID: v.DocumentID,
 				UserID:     v.UserID,
-				Role:       domain.Role(v.Role),
+				Role:       model.Role(v.Role),
 				CreatedAt:  v.CreatedAt.Time,
 				UpdatedAt:  v.UpdatedAt.Time,
 			})
@@ -209,7 +225,7 @@ func (r *documentRepository) ListPermissions(documentID uuid.UUID) ([]domain.Per
 	return result, nil
 }
 
-func (r *documentRepository) StorePermission(p domain.Permission) error {
+func (r *documentRepository) StorePermission(p model.Permission) error {
 	const query = `
 		INSERT INTO document_permission
 		    (document_id,user_id,role,created_at,updated_at) 
@@ -243,11 +259,12 @@ func (r *documentRepository) DeletePermission(documentID, userID uuid.UUID) erro
 	return err
 }
 
-func convertToDomainModel(r documentRow) domain.Document {
-	role := domain.Role(r.Role.String)
-	return domain.Document{
+func convertToDomainModel(r documentRow) model.Document {
+	role := model.Role(r.Role.String)
+	return model.Document{
 		ID:          r.ID,
 		OwnerUserID: r.OwnerUserID,
+		WorkspaceID: r.WorkspaceID,
 		Title:       r.Title,
 		Content:     r.Content,
 		Version:     r.Version,
@@ -255,15 +272,4 @@ func convertToDomainModel(r documentRow) domain.Document {
 		UpdatedAt:   r.UpdatedAt.Time,
 		Role:        role,
 	}
-}
-
-type documentRow struct {
-	ID          uuid.UUID      `db:"id"`
-	OwnerUserID uuid.UUID      `db:"owner_user_id"`
-	Title       string         `db:"title"`
-	Content     string         `db:"content"`
-	Version     int64          `db:"version"`
-	CreatedAt   sql.NullTime   `db:"created_at"`
-	UpdatedAt   sql.NullTime   `db:"updated_at"`
-	Role        sql.NullString `db:"role"`
 }

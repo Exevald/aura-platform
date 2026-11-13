@@ -17,50 +17,25 @@ import (
 
 type sessionContextKey struct{}
 
-func NewHandler(svc app.AuthService, cookie config.Cookie) publicapi.StrictServerInterface {
-	return &handler{svc: svc, cookie: cookie}
-}
-
 type handler struct {
 	svc    app.AuthService
 	cookie config.Cookie
 }
 
-func (h *handler) Register(ctx context.Context, req publicapi.RegisterRequestObject) (publicapi.RegisterResponseObject, error) {
-	result, err := h.svc.Register(ctx, app.RegisterSpec{
-		Login:    req.Body.Login,
-		Password: req.Body.Password,
-		Profile: app.ProfileSpec{
-			DisplayName: req.Body.DisplayName,
-			FirstName:   req.Body.FirstName,
-			LastName:    req.Body.LastName,
-			Email:       string(req.Body.Email),
-		},
-		RememberMe: req.Body.RememberMe,
-	})
-	if err != nil {
-		return registerError(err), nil
-	}
-	response := publicapi.Register201JSONResponse{
-		Body: authResult(result),
-	}
-	if result.Authenticated {
-		value := cookieString(h.sessionCookie(result))
-		response.Headers.SetCookie = &value
-	}
-	return response, nil
+func NewHandler(svc app.AuthService, cookie config.Cookie) publicapi.StrictServerInterface {
+	return &handler{svc: svc, cookie: cookie}
 }
 
 func (h *handler) Login(ctx context.Context, req publicapi.LoginRequestObject) (publicapi.LoginResponseObject, error) {
 	result, err := h.svc.Login(ctx, req.Body.Login, req.Body.Password, req.Body.RememberMe)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidCredentials) {
-			return publicapi.Login401JSONResponse{UnauthorizedJSONResponse: publicapi.UnauthorizedJSONResponse{Message: "invalid credentials"}}, nil
+			return publicapi.Login401JSONResponse{Message: "invalid credentials"}, nil
 		}
 		if errors.Is(err, domain.ErrInvalidCredential) {
-			return publicapi.Login400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: err.Error()}}, nil
+			return publicapi.Login400JSONResponse{Message: err.Error()}, nil
 		}
-		return publicapi.Login503JSONResponse{UnavailableJSONResponse: publicapi.UnavailableJSONResponse{Message: "authentication unavailable"}}, nil
+		return publicapi.Login503JSONResponse{Message: "authentication unavailable"}, nil
 	}
 	return publicapi.Login200JSONResponse{
 		Body:    authResult(result),
@@ -71,14 +46,17 @@ func (h *handler) Login(ctx context.Context, req publicapi.LoginRequestObject) (
 func (h *handler) Logout(ctx context.Context, _ publicapi.LogoutRequestObject) (publicapi.LogoutResponseObject, error) {
 	err := h.svc.Logout(ctx, sessionID(ctx))
 	if err != nil {
-		return publicapi.Logout503JSONResponse{UnavailableJSONResponse: publicapi.UnavailableJSONResponse{Message: "session unavailable"}}, nil
+		return publicapi.Logout503JSONResponse{Message: "session unavailable"}, nil
 	}
 	return publicapi.Logout204Response{
 		Headers: publicapi.Logout204ResponseHeaders{SetCookie: cookieString(h.expiredCookie())},
 	}, nil
 }
 
-func (h *handler) ChangePassword(ctx context.Context, req publicapi.ChangePasswordRequestObject) (publicapi.ChangePasswordResponseObject, error) {
+func (h *handler) ChangePassword(
+	ctx context.Context,
+	req publicapi.ChangePasswordRequestObject,
+) (publicapi.ChangePasswordResponseObject, error) {
 	id := sessionID(ctx)
 	if id == uuid.Nil() {
 		return unauthorizedPasswordResponse(), nil
@@ -87,14 +65,16 @@ func (h *handler) ChangePassword(ctx context.Context, req publicapi.ChangePasswo
 	switch {
 	case err == nil:
 		return publicapi.ChangePassword204Response{
-			Headers: publicapi.ChangePassword204ResponseHeaders{SetCookie: cookieString(h.expiredCookie())},
+			Headers: publicapi.ChangePassword204ResponseHeaders{
+				SetCookie: cookieString(h.expiredCookie()),
+			},
 		}, nil
 	case errors.Is(err, app.ErrSessionNotFound):
 		return unauthorizedPasswordResponse(), nil
 	case errors.Is(err, domain.ErrInvalidCredentials), errors.Is(err, domain.ErrInvalidPassword):
-		return publicapi.ChangePassword400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: err.Error()}}, nil
+		return publicapi.ChangePassword400JSONResponse{Message: err.Error()}, nil
 	default:
-		return publicapi.ChangePassword503JSONResponse{UnavailableJSONResponse: publicapi.UnavailableJSONResponse{Message: "password change unavailable"}}, nil
+		return publicapi.ChangePassword503JSONResponse{Message: "password change unavailable"}, nil
 	}
 }
 
@@ -142,19 +122,8 @@ func authResult(result app.AuthResult) publicapi.AuthResult {
 	return response
 }
 
-func registerError(err error) publicapi.RegisterResponseObject {
-	switch {
-	case errors.Is(err, domain.ErrCredentialExists), errors.Is(err, app.ErrEmailTaken):
-		return publicapi.Register409JSONResponse{ConflictJSONResponse: publicapi.ConflictJSONResponse{Message: err.Error()}}
-	case errors.Is(err, domain.ErrInvalidCredential), errors.Is(err, domain.ErrInvalidPassword):
-		return publicapi.Register400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: err.Error()}}
-	default:
-		return publicapi.Register503JSONResponse{UnavailableJSONResponse: publicapi.UnavailableJSONResponse{Message: "registration unavailable"}}
-	}
-}
-
 func unauthorizedPasswordResponse() publicapi.ChangePasswordResponseObject {
-	return publicapi.ChangePassword401JSONResponse{UnauthorizedJSONResponse: publicapi.UnauthorizedJSONResponse{Message: "authentication required"}}
+	return publicapi.ChangePassword401JSONResponse{Message: "authentication required"}
 }
 
 func sessionID(ctx context.Context) uuid.UUID {

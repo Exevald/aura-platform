@@ -7,16 +7,71 @@ routes:
       inlineString: 'gateway is running'
   - pattern: '^/api/public/v1/auth/.*$'
     target: '$(AUTH_UPSTREAM:-auth-service:8082)'
+  - pattern: '^/api/public/v1/registerer/.*$'
+    target: '$(REGISTERER_UPSTREAM:-registerer-service:8082)'
   - pattern: '^/api/bff/.*$'
     target: '$(BFF_UPSTREAM:-bff-service:8082)'
     interceptors:
       - id: session
-  - pattern: '^/api/editor/.*$'
-    target: '$(EDITOR_UPSTREAM:-editor-service:8082)'
+  - pattern: '^/s/[A-Za-z0-9]{10}$'
+    target: '$(SHORTLINK_UPSTREAM:-shortlink-service:8082)'
+  - pattern: '^/api/access/.*$'
+    target: '$(ACCESS_UPSTREAM:-access-service:8082)'
+    interceptors:
+      - id: session
+  - pattern: '^/api/workspaces/.*$'
+    target: '$(WORKSPACE_UPSTREAM:-workspace-service:8082)'
+    interceptors:
+      - id: session
+  - pattern: '^/api/notifications/.*$'
+    target: '$(NOTIFICATION_UPSTREAM:-notification-service:8082)'
+    interceptors:
+      - id: session
+  - pattern: '^/api/files/.*$'
+    target: '$(FILESTORAGE_UPSTREAM:-filestorage-service:8082)'
+    interceptors:
+      - id: session
+      - id: workspace
+  - pattern: '^/api/realtime/.*$'
+    target: '$(REALTIME_UPSTREAM:-realtime-service:8082)'
+    interceptors:
+      - id: session
+      - id: workspace
+  - pattern: '^/api/shortlink/.*$'
+    target: '$(SHORTLINK_UPSTREAM:-shortlink-service:8082)'
     interceptors:
       - id: session
       - id: access
         parameters:
+          moduleID: '$(SHORTLINK_MODULE_ID:-d5b2367d-af92-4fa8-bc65-93b41f37a397)'
+  - pattern: '^/api/editor/.*$'
+    target: '$(EDITOR_UPSTREAM:-editor-service:8082)'
+    interceptors:
+      - id: session
+      - id: workspace
+      - id: access
+        parameters:
           moduleID: '$(EDITOR_MODULE_ID:-b8547c76-51fd-4f7c-9c68-8f30c84f61cb)'
+  - pattern: '^/api/usergroups/.*$'
+    target: '$(USERGROUP_UPSTREAM:-usergroup-service:8082)'
+    interceptors:
+      - id: session
+      - id: workspace
+  - pattern: '^/api/calendar/.*$'
+    target: '$(CALENDAR_UPSTREAM:-calendar-service:8082)'
+    interceptors:
+      - id: session
+      - id: workspace
+      - id: access
+        parameters:
+          moduleID: '$(CALENDAR_MODULE_ID:-8997f5f2-b127-4b9f-b5d1-80d0726afbe1)'
+  - pattern: '^/api/planner/.*$'
+    target: '$(PLANNER_UPSTREAM:-planner-service:8082)'
+    interceptors:
+      - id: session
+      - id: workspace
+      - id: access
+        parameters:
+          moduleID: '$(PLANNER_MODULE_ID:-bd46e533-1971-4697-8324-2bd29a158627)'
   - pattern: '^/.*$'
     target: '$(FRONTEND_UPSTREAM:-frontend:80)'

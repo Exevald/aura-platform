@@ -37,6 +37,9 @@ func migrateDatabase(ctx context.Context, logger *slog.Logger, client mysql.Tran
 	}
 
 	for _, target := range targets {
+		if len(target.migrations) == 0 {
+			continue
+		}
 		err = runner.Migrate(ctx, target.name, target.migrations...)
 		if err != nil {
 			return err

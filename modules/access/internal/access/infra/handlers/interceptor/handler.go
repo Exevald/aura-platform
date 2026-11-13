@@ -17,6 +17,7 @@ type Handler struct {
 }
 
 func New(svc app.ModuleAccessService) *Handler { return &Handler{svc: svc} }
+
 func (h *Handler) Intercept(ctx context.Context, r *interceptorgrpc.InterceptRequest) (*interceptorgrpc.InterceptResponse, error) {
 	if r.GetRequestHeaders() == nil {
 		return allow(), nil
@@ -45,9 +46,11 @@ func (h *Handler) Intercept(ctx context.Context, r *interceptorgrpc.InterceptReq
 	}
 	return allow(), nil
 }
+
 func allow() *interceptorgrpc.InterceptResponse {
 	return &interceptorgrpc.InterceptResponse{Result: &interceptorgrpc.InterceptResponse_ContinueResponse{ContinueResponse: &interceptorgrpc.ContinueResponse{}}}
 }
+
 func deny() *interceptorgrpc.InterceptResponse {
 	body, _ := json.Marshal(map[string]string{"message": "module access denied"})
 	return &interceptorgrpc.InterceptResponse{Result: &interceptorgrpc.InterceptResponse_ImmediateResponse{ImmediateResponse: &interceptorgrpc.ImmediateResponse{StatusCode: 403, Headers: []*interceptorgrpc.Header{{Key: "Content-Type", Value: "application/json"}}, Body: body}}}

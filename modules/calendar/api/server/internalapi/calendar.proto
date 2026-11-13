@@ -1,0 +1,12 @@
+syntax = "proto3";
+package calendarInternalAPI;
+option go_package = "/.;calendarinternalapi";
+import "google/protobuf/timestamp.proto";
+service CalendarService {
+  rpc UpsertTaskEvent(UpsertTaskEventRequest) returns (TaskEventResponse);
+  rpc DeleteTaskEvent(DeleteTaskEventRequest) returns (DeleteTaskEventResponse);
+}
+message UpsertTaskEventRequest { string idempotency_key = 1; string event_id = 2; string calendar_id = 3; string workspace_id = 4; string actor_user_id = 5; string title = 6; string description = 7; google.protobuf.Timestamp starts_at = 8; google.protobuf.Timestamp ends_at = 9; string timezone = 10; }
+message TaskEventResponse { string event_id = 1; int64 version = 2; }
+message DeleteTaskEventRequest { string event_id = 1; string workspace_id = 2; string actor_user_id = 3; }
+message DeleteTaskEventResponse {}

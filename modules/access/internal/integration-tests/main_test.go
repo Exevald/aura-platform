@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -37,30 +38,6 @@ type environment struct {
 
 func TestMain(m *testing.M) {
 	os.Exit(runTests(m))
-}
-
-func runTests(m *testing.M) (exitCode int) {
-	testEnv = &environment{}
-	defer func() {
-		err := testEnv.close()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			exitCode = 1
-		}
-		if exitCode != 0 {
-			fmt.Fprintln(os.Stderr, testEnv.logs.String())
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	err := testEnv.prepare(ctx)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	return m.Run()
 }
 
 func (e *environment) prepare(ctx context.Context) error {
@@ -211,10 +188,34 @@ func (e *environment) startContainer(ctx context.Context, request testcontainers
 
 func (e *environment) close() error {
 	var errs []error
-	for i := len(e.closers) - 1; i >= 0; i-- {
-		errs = append(errs, e.closers[i]())
+	for _, v := range slices.Backward(e.closers) {
+		errs = append(errs, v())
 	}
 	return errors.Join(errs...)
+}
+
+func runTests(m *testing.M) (exitCode int) {
+	testEnv = &environment{}
+	defer func() {
+		err := testEnv.close()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			exitCode = 1
+		}
+		if exitCode != 0 {
+			fmt.Fprintln(os.Stderr, testEnv.logs.String())
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	err := testEnv.prepare(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return m.Run()
 }
 
 func containerAddress(ctx context.Context, container testcontainers.Container, port string) (string, error) {

@@ -12,6 +12,19 @@ import (
 	"user/internal/user/domain"
 )
 
+type userRepository struct {
+	ctx    context.Context
+	client mysql.ClientContext
+}
+
+type sqlxUser struct {
+	ID          uuid.UUID `db:"id"`
+	DisplayName string    `db:"display_name"`
+	FirstName   string    `db:"first_name"`
+	LastName    string    `db:"last_name"`
+	Email       string    `db:"email"`
+}
+
 func NewUserRepository(
 	ctx context.Context,
 	client mysql.ClientContext,
@@ -20,11 +33,6 @@ func NewUserRepository(
 		ctx:    ctx,
 		client: client,
 	}
-}
-
-type userRepository struct {
-	ctx    context.Context
-	client mysql.ClientContext
 }
 
 func (u *userRepository) NextID() (uuid.UUID, error) {
@@ -104,12 +112,4 @@ func (u *userRepository) Delete(id uuid.UUID) error {
 	const query = `UPDATE user SET deleted_at = NOW() WHERE id = ? AND deleted_at is NULL`
 	_, err := u.client.ExecContext(u.ctx, "remove-user", query, (id))
 	return errors.WithStack(err)
-}
-
-type sqlxUser struct {
-	ID          uuid.UUID `db:"id"`
-	DisplayName string    `db:"display_name"`
-	FirstName   string    `db:"first_name"`
-	LastName    string    `db:"last_name"`
-	Email       string    `db:"email"`
 }

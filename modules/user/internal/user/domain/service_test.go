@@ -15,44 +15,8 @@ type userRepositoryFake struct {
 	users map[uuid.UUID]User
 }
 
-func (r *userRepositoryFake) NextID() (uuid.UUID, error) {
-	return uuid.New(), nil
-}
-
-func (r *userRepositoryFake) Store(user User) error {
-	r.users[user.ID] = user
-	return nil
-}
-
-func (r *userRepositoryFake) Find(id uuid.UUID) (User, error) {
-	user, ok := r.users[id]
-	if !ok {
-		return User{}, ErrUserNotFound
-	}
-	return user, nil
-}
-
-func (r *userRepositoryFake) FindByEmail(email string) (User, error) {
-	for _, user := range r.users {
-		if user.Email == email {
-			return user, nil
-		}
-	}
-	return User{}, ErrUserNotFound
-}
-
-func (r *userRepositoryFake) Delete(id uuid.UUID) error {
-	delete(r.users, id)
-	return nil
-}
-
 type userDispatcherFake struct {
 	messages []proto.Message
-}
-
-func (d *userDispatcherFake) Dispatch(message proto.Message) error {
-	d.messages = append(d.messages, message)
-	return nil
 }
 
 func TestUserServiceLifecycle(t *testing.T) {
@@ -88,4 +52,40 @@ func TestUserServiceRejectsInvalidData(t *testing.T) {
 	_, err := service.CreateUser("", "Ada", "Lovelace", "ada@example.com")
 	require.ErrorIs(t, err, ErrInvalidUser)
 	require.True(t, errors.Is(service.RemoveUser(uuid.Nil()), ErrInvalidUser))
+}
+
+func (r *userRepositoryFake) NextID() (uuid.UUID, error) {
+	return uuid.New(), nil
+}
+
+func (r *userRepositoryFake) Store(user User) error {
+	r.users[user.ID] = user
+	return nil
+}
+
+func (r *userRepositoryFake) Find(id uuid.UUID) (User, error) {
+	user, ok := r.users[id]
+	if !ok {
+		return User{}, ErrUserNotFound
+	}
+	return user, nil
+}
+
+func (r *userRepositoryFake) FindByEmail(email string) (User, error) {
+	for _, user := range r.users {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+	return User{}, ErrUserNotFound
+}
+
+func (r *userRepositoryFake) Delete(id uuid.UUID) error {
+	delete(r.users, id)
+	return nil
+}
+
+func (d *userDispatcherFake) Dispatch(message proto.Message) error {
+	d.messages = append(d.messages, message)
+	return nil
 }

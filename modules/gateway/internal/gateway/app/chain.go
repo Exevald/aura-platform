@@ -26,6 +26,7 @@ func (g *Gateway) phase(x *exchange, phase string, response *http.Response, body
 	}
 	return nil, nil
 }
+
 func (g *Gateway) callInterceptor(x *exchange, invocation config.Invocation, phase string, response bool, event *pb.InterceptRequest) (*pb.InterceptResponse, error) {
 	client := g.clients[invocation.ID]
 	var decision *pb.InterceptResponse
@@ -50,6 +51,7 @@ func (g *Gateway) callInterceptor(x *exchange, invocation config.Invocation, pha
 	}
 	return decision, nil
 }
+
 func (g *Gateway) validateReplacement(x *exchange, decision *pb.InterceptResponse, response bool) error {
 	if immediate := decision.GetImmediateResponse(); immediate != nil && int64(len(immediate.Body)) > g.bodyLimit(x.route, true) {
 		return errors.New("replacement too large")

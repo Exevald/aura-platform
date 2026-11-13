@@ -1,0 +1,20 @@
+openapi: 3.0.0
+info: { version: 1.0.0, title: Application registry API, x-api-identifier: appregpublicapi }
+paths:
+  /api/apps/v1/apps:
+    get:
+      operationId: listApps
+      responses:
+        '200': { description: Applications, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/app' } } } } }
+components:
+  schemas:
+    app:
+      type: object
+      required: [id, code, name, frontendRoute, backendTarget, defaultEnabled]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        frontendRoute: { type: string }
+        backendTarget: { type: string }
+        defaultEnabled: { type: boolean }

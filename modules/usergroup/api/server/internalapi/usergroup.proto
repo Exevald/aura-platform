@@ -1,0 +1,17 @@
+syntax = "proto3";
+package usergroupInternalAPI;
+
+option go_package = "/.;usergroupinternalapi";
+
+service UsergroupService {
+  rpc GetOwnedGroupMembers(GetOwnedGroupMembersRequest) returns (GetOwnedGroupMembersResponse);
+}
+
+message GetOwnedGroupMembersRequest {
+  string group_id = 1;
+  string owner_user_id = 2;
+}
+
+message GetOwnedGroupMembersResponse {
+  repeated string user_ids = 1;
+}

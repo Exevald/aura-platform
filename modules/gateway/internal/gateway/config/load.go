@@ -51,19 +51,7 @@ func Load(paths ...string) (*Config, error) {
 	}
 	return c, nil
 }
-func mergeDeclaration(d document, declarations map[string]map[string]any) error {
-	name, ok := d.data["name"].(string)
-	if !ok || name == "" {
-		return errors.New("service name required")
-	}
-	if declaration, ok := d.data["interceptor"].(map[string]any); ok {
-		if declarations[name] == nil {
-			declarations[name] = map[string]any{}
-		}
-		merge(declarations[name], declaration)
-	}
-	return nil
-}
+
 func (c *Config) loadRoutes(docs []document, secrets map[string]map[string]string) error {
 	for n := len(docs) - 1; n >= 0; n-- {
 		d := docs[n]
@@ -84,6 +72,20 @@ func (c *Config) loadRoutes(docs []document, secrets map[string]map[string]strin
 			}
 			c.Routes = append(c.Routes, r)
 		}
+	}
+	return nil
+}
+
+func mergeDeclaration(d document, declarations map[string]map[string]any) error {
+	name, ok := d.data["name"].(string)
+	if !ok || name == "" {
+		return errors.New("service name required")
+	}
+	if declaration, ok := d.data["interceptor"].(map[string]any); ok {
+		if declarations[name] == nil {
+			declarations[name] = map[string]any{}
+		}
+		merge(declarations[name], declaration)
 	}
 	return nil
 }

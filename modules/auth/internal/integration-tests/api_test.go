@@ -5,18 +5,22 @@ import (
 	"net/http/cookiejar"
 	"testing"
 	"time"
+	"uuid"
 
 	rabbit "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
+	authinternalapi "auth/api/server/internalapi"
 	"auth/api/server/publicapi"
 )
 
-func TestRegistrationLoginLogoutAndPasswordChange(t *testing.T) {
+func TestCredentialParticipantLoginLogoutAndPasswordChange(t *testing.T) {
 	const (
-		login     = "ada"
-		firstName = "Ada"
-		lastName  = "Lovelace"
+		login = "ada"
 	)
 	deliveries := subscribeDomainEvents(t)
 	jar, err := cookiejar.New(nil)
@@ -29,38 +33,23 @@ func TestRegistrationLoginLogoutAndPasswordChange(t *testing.T) {
 	require.NoError(t, err)
 	password := "p-Tc!9Hns8aw76" //nolint:gosec // Regression value from the reported registration request.
 	nextPassword := "another correct horse password"
-	tooShort, err := client.RegisterWithResponse(t.Context(), publicapi.RegisterJSONRequestBody{
-		Login:       "short-password",
-		Password:    "1234567",
-		DisplayName: firstName,
-		FirstName:   firstName,
-		LastName:    lastName,
-		Email:       "short-password@example.com",
-		RememberMe:  false,
+	connection, err := grpc.NewClient(testEnv.conf.GRPC.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, connection.Close()) })
+	participant := authinternalapi.NewAuthServiceClient(connection)
+	userID := uuid.New()
+	_, err = participant.PrepareCredentialRegistration(t.Context(), &authinternalapi.PrepareCredentialRegistrationRequest{
+		TransactionId: uuid.New().String(), UserId: userID.String(), Login: "short-password", Password: "1234567",
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	transactionID := uuid.New()
+	prepared, err := participant.PrepareCredentialRegistration(t.Context(), &authinternalapi.PrepareCredentialRegistrationRequest{
+		TransactionId: transactionID.String(), UserId: userID.String(), Login: login, Password: password,
 	})
 	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, tooShort.StatusCode())
-	require.NotNil(t, tooShort.JSON400)
-	require.Equal(t, "validation failed", tooShort.JSON400.Message)
-	require.NotNil(t, tooShort.JSON400.Fields)
-	require.Contains(t, *tooShort.JSON400.Fields, "password")
-
-	registered, err := client.RegisterWithResponse(t.Context(), publicapi.RegisterJSONRequestBody{
-		Login:       login,
-		Password:    password,
-		DisplayName: firstName,
-		FirstName:   firstName,
-		LastName:    lastName,
-		Email:       "ada@example.com",
-		RememberMe:  false,
-	})
+	require.NotEmpty(t, prepared.GetCredentialId())
+	_, err = participant.CommitCredentialRegistration(t.Context(), &authinternalapi.RegistrationTransactionRequest{TransactionId: transactionID.String()})
 	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, registered.StatusCode())
-	require.NotNil(t, registered.JSON201)
-	require.True(t, registered.JSON201.Authenticated)
-	require.NotNil(t, registered.JSON201.ExpiresAt)
-	require.Len(t, registered.HTTPResponse.Cookies(), 1)
-	require.Equal(t, 0, registered.HTTPResponse.Cookies()[0].MaxAge)
 
 	var passwordHash string
 	err = testEnv.connector.TransactionalClient().GetContext(
@@ -74,28 +63,10 @@ func TestRegistrationLoginLogoutAndPasswordChange(t *testing.T) {
 	require.NotEqual(t, password, passwordHash)
 	require.Contains(t, passwordHash, "$argon2id$")
 
-	duplicate, err := client.RegisterWithResponse(t.Context(), publicapi.RegisterJSONRequestBody{
-		Login:       login,
-		Password:    password,
-		DisplayName: "Another Ada",
-		FirstName:   firstName,
-		LastName:    lastName,
-		Email:       "other@example.com",
-		RememberMe:  false,
+	_, err = participant.PrepareCredentialRegistration(t.Context(), &authinternalapi.PrepareCredentialRegistrationRequest{
+		TransactionId: uuid.New().String(), UserId: uuid.New().String(), Login: login, Password: password,
 	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusConflict, duplicate.StatusCode())
-	duplicateEmail, err := client.RegisterWithResponse(t.Context(), publicapi.RegisterJSONRequestBody{
-		Login:       "another-login",
-		Password:    password,
-		DisplayName: "Another Ada",
-		FirstName:   firstName,
-		LastName:    lastName,
-		Email:       "ADA@EXAMPLE.COM",
-		RememberMe:  false,
-	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusConflict, duplicateEmail.StatusCode())
+	require.Equal(t, codes.AlreadyExists, status.Code(err))
 
 	loggedOut, err := client.LogoutWithResponse(t.Context())
 	require.NoError(t, err)
@@ -145,8 +116,6 @@ func TestRegistrationLoginLogoutAndPasswordChange(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, newPassword.StatusCode())
 	requireEventTypes(t, deliveries,
-		"UserCreated",
-		"UserRegistered",
 		"UserLoggedIn",
 		"PasswordChanged",
 		"SessionCreated",

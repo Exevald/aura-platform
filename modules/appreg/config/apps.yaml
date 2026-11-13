@@ -1,0 +1,26 @@
+revision: "1"
+apps:
+  - id: b8547c76-51fd-4f7c-9c68-8f30c84f61cb
+    code: editor
+    name: Редактор документов
+    frontendRoute: /documents
+    backendTarget: editor-service:8082
+    defaultEnabled: true
+  - id: d5b2367d-af92-4fa8-bc65-93b41f37a397
+    code: shortlink
+    name: Короткие ссылки
+    frontendRoute: /shortlinks
+    backendTarget: shortlink-service:8082
+    defaultEnabled: true
+  - id: 8997f5f2-b127-4b9f-b5d1-80d0726afbe1
+    code: calendar
+    name: Календарь
+    frontendRoute: /calendar
+    backendTarget: calendar-service:8082
+    defaultEnabled: true
+  - id: bd46e533-1971-4697-8324-2bd29a158627
+    code: planner
+    name: Планировщик
+    frontendRoute: /planner
+    backendTarget: planner-service:8082
+    defaultEnabled: true

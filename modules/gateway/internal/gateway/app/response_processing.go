@@ -26,6 +26,7 @@ func (g *Gateway) processResponse(x *exchange, response *http.Response) error {
 	enforceBody(x.request, response)
 	return nil
 }
+
 func (g *Gateway) responsePhase(x *exchange, phase string, response *http.Response, body []byte) (bool, error) {
 	immediate, err := g.phase(x, phase, response, body) //nolint:bodyclose // Ownership transfers to response; the proxy or write closes its body.
 	if err != nil {
@@ -38,6 +39,7 @@ func (g *Gateway) responsePhase(x *exchange, phase string, response *http.Respon
 	*response = *immediate
 	return true, nil
 }
+
 func (g *Gateway) processResponseBody(x *exchange, response *http.Response) error {
 	body, err := readLimited(response.Body, g.bodyLimit(x.route, true))
 	if err != nil {

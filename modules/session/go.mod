@@ -6,7 +6,7 @@ require (
 	github.com/distributed-programming-2026/gateway v0.0.0
 	github.com/distributed-programming-2026/go-sdk/pkg/amqp v0.0.3
 	github.com/distributed-programming-2026/go-sdk/pkg/event v0.0.3
-	github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.3
+	github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.6
 	github.com/distributed-programming-2026/go-sdk/pkg/migrator v0.0.3
 	github.com/distributed-programming-2026/go-sdk/pkg/mysql v0.0.5
 	github.com/distributed-programming-2026/go-sdk/pkg/uow v0.0.3

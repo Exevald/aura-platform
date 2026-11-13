@@ -11,7 +11,9 @@ import (
 	"auth/internal/auth/app"
 	"auth/internal/auth/config"
 	eventinfra "auth/internal/auth/infra/event"
+	authmysql "auth/internal/auth/infra/mysql"
 	"auth/internal/auth/infra/password"
+	registrationinfra "auth/internal/auth/infra/registration"
 )
 
 func (a *application) serviceCmd() *cli.Command {
@@ -56,20 +58,23 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 	}()
 
 	dispatcherFactory := eventinfra.NewDispatcherFactory(appID, dispatcher)
+	if err = db.xa.Validate(ctx); err != nil {
+		return err
+	}
+	hasher := password.NewArgon2ID()
 	svc := app.NewAuthService(
-		db.unit,
+		authmysql.NewUnitOfWork(db.unit),
 		dispatcherFactory,
-		password.NewArgon2ID(),
-		clients.users,
+		hasher,
 		clients.sessions,
-		clients.access,
 	)
+	registration := registrationinfra.New(db.xa, dispatcherFactory, hasher)
 	httpServer, err := newHTTPServer(logger, conf, svc)
 	if err != nil {
 		return err
 	}
 
-	grpcServer, err := newGRPCServer(conf)
+	grpcServer, err := newGRPCServer(conf, registration)
 	if err != nil {
 		return err
 	}

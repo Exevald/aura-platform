@@ -42,6 +42,7 @@ func (g *Gateway) selectRoute(x *exchange) error {
 		setPath(x.request, r.InternalRedirect.RE.ReplaceAllString(x.request.URL.Path, r.InternalRedirect.New))
 	}
 }
+
 func (g *Gateway) matchRoute(req *http.Request) *config.Route {
 	for i := range g.conf.Routes {
 		if g.conf.Routes[i].Matches(req) {
@@ -50,7 +51,12 @@ func (g *Gateway) matchRoute(req *http.Request) *config.Route {
 	}
 	return nil
 }
-func setPath(req *http.Request, path string) { req.URL.Path = path; req.URL.RawPath = "" }
+
+func setPath(req *http.Request, path string) {
+	req.URL.Path = path
+	req.URL.RawPath = ""
+}
+
 func authorized(req *http.Request, auth *config.BasicAuth) bool {
 	user, password, ok := req.BasicAuth()
 	if !ok {

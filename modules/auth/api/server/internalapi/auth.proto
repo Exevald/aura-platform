@@ -1,0 +1,27 @@
+syntax = "proto3";
+package authInternalAPI;
+
+option go_package = "/.;authinternalapi";
+
+service AuthService {
+  rpc PrepareCredentialRegistration(PrepareCredentialRegistrationRequest) returns (PrepareCredentialRegistrationResponse);
+  rpc CommitCredentialRegistration(RegistrationTransactionRequest) returns (RegistrationTransactionResponse);
+  rpc RollbackCredentialRegistration(RegistrationTransactionRequest) returns (RegistrationTransactionResponse);
+}
+
+message PrepareCredentialRegistrationRequest {
+  string transaction_id = 1;
+  string user_id = 2;
+  string login = 3;
+  string password = 4;
+}
+
+message PrepareCredentialRegistrationResponse {
+  string credential_id = 1;
+}
+
+message RegistrationTransactionRequest {
+  string transaction_id = 1;
+}
+
+message RegistrationTransactionResponse {}

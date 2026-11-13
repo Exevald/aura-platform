@@ -1,6 +1,17 @@
 // Package config loads and compiles an immutable gateway configuration.
 package config
 
+const (
+	RequestHeaders   = "requestHeaders"
+	RequestBody      = "requestBody"
+	RequestTrailers  = "requestTrailers"
+	ResponseHeaders  = "responseHeaders"
+	ResponseBody     = "responseBody"
+	ResponseTrailers = "responseTrailers"
+	BodyBuffered     = "buffered"
+	BodyNone         = "none"
+)
+
 type ProcessingMode struct {
 	RequestHeaders       *bool  `yaml:"requestHeaders"`
 	ResponseHeaders      bool   `yaml:"responseHeaders"`
@@ -29,14 +40,3 @@ func (m ProcessingMode) Enabled(phase string) bool {
 	}
 	return false
 }
-
-const (
-	RequestHeaders   = "requestHeaders"
-	RequestBody      = "requestBody"
-	RequestTrailers  = "requestTrailers"
-	ResponseHeaders  = "responseHeaders"
-	ResponseBody     = "responseBody"
-	ResponseTrailers = "responseTrailers"
-	BodyBuffered     = "buffered"
-	BodyNone         = "none"
-)

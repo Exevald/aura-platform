@@ -5,6 +5,7 @@ _.source = "{{ config_root }}/mise-env/docker.sh"
 
 [monorepo]
 config_roots = [
+    "e2e",
     "lib",
     "frontend",
     "modules/*",
@@ -29,6 +30,7 @@ for config in modules/*/mise.toml; do
     module=${config%/mise.toml}
     MISE_JOBS=1 mise run "//$module:all"
 done
+MISE_JOBS=1 mise run //e2e:all
 '''
 
 [tasks.local-up]

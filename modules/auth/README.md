@@ -1,29 +1,33 @@
 # Auth service
 
-Сервис управляет учётными данными и аутентификацией.
+Сервис владеет credentials, проверяет пароль и обслуживает login, logout и смену пароля.
 
-## Модель и транзакции
+## API и транзакции
 
-- Домен содержит агрегат, бизнес-правила, интерфейс репозитория и доменные события.
-- AuthService: регистрация, вход, logout и смена пароля.
-- App-слой открывает UnitOfWork, создаёт доменный сервис с транзакционным репозиторием и диспетчером событий и выполняет операцию.
-- MySQL-репозиторий хранит данные в таблице credential. Изменение модели и запись события в outbox выполняются в одной транзакции.
+Публичный HTTP API предоставляет `/login`, `/logout` и `/change-password` под
+префиксом `/api/public/v1/auth`. Регистрация вынесена в `registerer`.
 
-Публичный HTTP API предоставляет `/register`, `/login`, `/logout` и `/change-password` под префиксом `/api/public/v1/auth`. Auth синхронно вызывает внутренние gRPC API user и session. Пароли длиной 8–128 Unicode-символов хешируются Argon2id.
+Для регистрации auth предоставляет внутренние gRPC-методы
+`PrepareCredentialRegistration`, `CommitCredentialRegistration` и
+`RollbackCredentialRegistration`. Credential и локальные outbox-записи
+подготавливаются как отдельная MySQL XA-ветка; финальное решение принимает
+`registerer`.
 
-Session ID хранится в HttpOnly/Secure/SameSite=Strict cookie. Без `rememberMe` cookie непостоянная, а серверная сессия живёт 8 часов; с `rememberMe` cookie и серверная сессия живут 30 дней. `AUTH_COOKIE_DOMAIN` задаёт общий доверенный домен для продуктов на поддоменах; локально значение оставляют пустым и используют один hostname, например `localhost`.
+Пароли длиной 8–128 Unicode-символов хешируются Argon2id. Auth синхронно вызывает
+только session. Session ID передаётся в HttpOnly/Secure/SameSite=Strict cookie.
 
-## Запуск и конфигурация
+## Запуск
 
-Бинарник поддерживает команду service (по умолчанию). Она применяет миграции, запускает HTTP, gRPC и outbox relay.
+Основные переменные окружения используют префикс `AUTH_`: `MYSQL_*`,
+`HTTP_ADDRESS`, `GRPC_ADDRESS`, `AMQP_*`, `RELAY_*`,
+`DEPENDENCIES_SESSION_ADDRESS` и `COOKIE_*`. MySQL должен использовать InnoDB и
+`xa_detach_on_prepare=ON`.
 
-Основные переменные окружения используют префикс AUTH_: MYSQL_*, HTTP_ADDRESS, GRPC_ADDRESS, AMQP_*, RELAY_*, DEPENDENCIES_* и COOKIE_*.
+```sh
+mise run //modules/auth:build
+mise run //modules/auth:test
+mise run //modules/auth:integration-tests
+```
 
-Из корня репозитория:
-
-    mise run //modules/auth:generate-migration "Describe migration"
-    mise run //modules/auth:build
-    mise run //modules/auth:test
-    mise run //modules/auth:integration-tests
-
-Интеграционный тест поднимает user, auth и session с отдельными MySQL и RabbitMQ и проверяет регистрацию, повторную регистрацию, login, logout, remember-me, смену пароля и публикацию доменных событий.
+Интеграционный тест проверяет XA prepare/commit credential, duplicate login,
+login, logout, remember-me, смену пароля и публикацию auth/session событий.

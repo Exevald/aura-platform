@@ -7,14 +7,14 @@ import (
 	"github.com/distributed-programming-2026/go-sdk/pkg/mysql"
 )
 
+type version1792830069 struct {
+	client mysql.ClientContext
+}
+
 func Version1792830069(client mysql.ClientContext) migrator.Migration {
 	return &version1792830069{
 		client: client,
 	}
-}
-
-type version1792830069 struct {
-	client mysql.ClientContext
 }
 
 func (v *version1792830069) Version() int64 {

@@ -17,6 +17,7 @@ type idleTransport struct {
 	base http.RoundTripper
 	idle time.Duration
 }
+
 type activity struct {
 	mu      sync.Mutex
 	timer   *time.Timer
@@ -26,35 +27,11 @@ type activity struct {
 	expired bool
 }
 
-func (a *activity) reset() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.closed || a.expired {
-		return
-	}
-	if a.timer == nil {
-		a.timer = time.AfterFunc(a.idle, func() {
-			a.mu.Lock()
-			if !a.closed {
-				a.expired = true
-				a.cancel()
-			}
-			a.mu.Unlock()
-		})
-	} else {
-		a.timer.Reset(a.idle)
-	}
+type activityBody struct {
+	io.ReadCloser
+	a *activity
 }
-func (a *activity) close() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.closed = true
-	if a.timer != nil {
-		a.timer.Stop()
-	}
-	a.cancel()
-}
-func (a *activity) timedout() bool { a.mu.Lock(); defer a.mu.Unlock(); return a.expired }
+
 func (t *idleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.idle == 0 {
 		return t.base.RoundTrip(req)
@@ -84,19 +61,6 @@ func (t *idleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	response.Body = &activityBody{ReadCloser: response.Body, a: a}
 	return response, nil
 }
-func (a *activity) closeTimer() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.closed = true
-	if a.timer != nil {
-		a.timer.Stop()
-	}
-}
-
-type activityBody struct {
-	io.ReadCloser
-	a *activity
-}
 
 func (b *activityBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
@@ -111,4 +75,54 @@ func (b *activityBody) Read(p []byte) (int, error) {
 	}
 	return n, err
 }
-func (b *activityBody) Close() error { err := b.ReadCloser.Close(); b.a.close(); return err }
+
+func (b *activityBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.a.close()
+	return err
+}
+
+func (a *activity) reset() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed || a.expired {
+		return
+	}
+	if a.timer == nil {
+		a.timer = time.AfterFunc(a.idle, func() {
+			a.mu.Lock()
+			if !a.closed {
+				a.expired = true
+				a.cancel()
+			}
+			a.mu.Unlock()
+		})
+	} else {
+		a.timer.Reset(a.idle)
+	}
+}
+
+func (a *activity) close() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.closed = true
+	if a.timer != nil {
+		a.timer.Stop()
+	}
+	a.cancel()
+}
+
+func (a *activity) timedout() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.expired
+}
+
+func (a *activity) closeTimer() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.closed = true
+	if a.timer != nil {
+		a.timer.Stop()
+	}
+}

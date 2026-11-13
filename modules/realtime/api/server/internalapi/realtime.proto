@@ -1,0 +1,6 @@
+syntax = "proto3";
+package realtimeInternalAPI;
+option go_package = "/.;realtimeinternalapi";
+service RealtimeService { rpc Publish(PublishRequest) returns (PublishResponse); }
+message PublishRequest { string user_id = 1; string workspace_id = 2; string type = 3; bytes payload_json = 4; }
+message PublishResponse { int32 delivered = 1; }

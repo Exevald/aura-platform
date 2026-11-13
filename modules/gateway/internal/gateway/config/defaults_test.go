@@ -47,6 +47,7 @@ routes: [{patterns: ['^/a$', '^/b$'], directResponse: {status: 200}, interceptor
 	require.Zero(t, c.Gateway.HealthzPort)
 	require.Zero(t, c.Gateway.GatewayHealthHost)
 }
+
 func TestSecretsMergeRetainsKeysAndExpandsLists(t *testing.T) {
 	dir := t.TempDir()
 	file(t, dir, "a.yaml", `kind: gateway/secret/v1

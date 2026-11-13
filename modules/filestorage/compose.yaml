@@ -1,0 +1,35 @@
+services:
+  filestorage-service:
+    image: distributed-programming-filestorage:local
+    build:
+      context: ./modules/filestorage
+      dockerfile: Dockerfile
+    environment:
+      FILESTORAGE_MYSQL_ADDRESS: mysql:3306
+      FILESTORAGE_AMQP_URL: amqp://local:local@rabbitmq:5672/
+      FILESTORAGE_S3_ENDPOINT: minio:9000
+    ports:
+      - "${FILESTORAGE_GRPC_PORT:-8081}:8081"
+      - "${FILESTORAGE_HTTP_PORT:-8082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  filestorage-message-handler:
+    image: distributed-programming-filestorage:local
+    command: [message-handler]
+    environment:
+      FILESTORAGE_MYSQL_ADDRESS: mysql:3306
+      FILESTORAGE_AMQP_URL: amqp://local:local@rabbitmq:5672/
+      FILESTORAGE_S3_ENDPOINT: minio:9000
+    ports:
+      - "${FILESTORAGE_MESSAGE_HANDLER_PORT:-8083}:8082"
+    depends_on:
+      filestorage-service:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy

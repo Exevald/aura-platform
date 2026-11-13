@@ -90,6 +90,7 @@ routes:
 	require.EqualValues(t, 1, calls.Load(),
 		"chain failed: %d %v %s", status, h, body)
 }
+
 func TestAuthorizationStopsChainAndBackend(t *testing.T) {
 	var called atomic.Int32
 	deny := grpcServer(t, func(context.Context, *pb.InterceptRequest) (*pb.InterceptResponse, error) {

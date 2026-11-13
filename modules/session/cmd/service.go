@@ -11,6 +11,7 @@ import (
 	"session/internal/session/app"
 	"session/internal/session/config"
 	eventinfra "session/internal/session/infra/event"
+	sessionmysql "session/internal/session/infra/mysql"
 )
 
 func (a *application) serviceCmd() *cli.Command {
@@ -48,7 +49,7 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 
 	dispatcherFactory := eventinfra.NewDispatcherFactory(appID, dispatcher)
 	svc := app.NewSessionService(
-		db.unit,
+		sessionmysql.NewUnitOfWork(db.unit),
 		dispatcherFactory,
 		conf.DefaultLifetime,
 		conf.PersistentLifetime,

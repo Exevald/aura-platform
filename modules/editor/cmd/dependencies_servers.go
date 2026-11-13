@@ -14,7 +14,7 @@ import (
 	publichandler "editor/internal/editor/infra/handlers/public"
 )
 
-func newHTTPServer(logger *slog.Logger, conf config.Env, svc *app.service) (*http.Server, error) {
+func newHTTPServer(logger *slog.Logger, conf config.Env, svc app.EditorService) (*http.Server, error) {
 	register, err := publichandler.Register(svc, logger)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func newHTTPServer(logger *slog.Logger, conf config.Env, svc *app.service) (*htt
 	}, register)
 }
 
-func newGRPCServer(logger *slog.Logger, conf config.Env, svc *app.service) (*grpc.Server, error) {
+func newGRPCServer(_ *slog.Logger, conf config.Env, _ app.EditorService) (*grpc.Server, error) {
 	return grpc.NewServer(grpc.Config{
 		Address:      conf.GRPC.Address,
 		GraceTimeout: conf.App.GraceTimeout,

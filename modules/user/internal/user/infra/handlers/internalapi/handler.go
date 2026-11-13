@@ -13,13 +13,58 @@ import (
 	"user/internal/user/domain"
 )
 
-func NewHandler(svc app.UserService) userinternalapi.UserServiceServer {
-	return &handler{svc: svc}
+type handler struct {
+	svc          app.UserService
+	registration app.RegistrationParticipant
+	userinternalapi.UnimplementedUserServiceServer
 }
 
-type handler struct {
-	svc app.UserService
-	userinternalapi.UnimplementedUserServiceServer
+func NewHandler(svc app.UserService, registration app.RegistrationParticipant) userinternalapi.UserServiceServer {
+	return &handler{svc: svc, registration: registration}
+}
+
+// подумать про распределённые транзакции через схему-декоратор
+func (h *handler) PrepareUserRegistration(
+	ctx context.Context,
+	req *userinternalapi.PrepareUserRegistrationRequest,
+) (*userinternalapi.RegistrationTransactionResponse, error) {
+	transactionID, transactionErr := uuid.Parse(req.GetTransactionId())
+	userID, userErr := uuid.Parse(req.GetUserId())
+	if transactionErr != nil || userErr != nil || req.GetFields() == nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid registration transaction")
+	}
+	if err := h.registration.Prepare(ctx, transactionID, userID, fieldsSpec(req.GetFields())); err != nil {
+		return nil, mapError(err)
+	}
+	return &userinternalapi.RegistrationTransactionResponse{}, nil
+}
+
+func (h *handler) CommitUserRegistration(
+	ctx context.Context,
+	req *userinternalapi.RegistrationTransactionRequest,
+) (*userinternalapi.RegistrationTransactionResponse, error) {
+	transactionID, err := uuid.Parse(req.GetTransactionId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid registration transaction")
+	}
+	if err = h.registration.Commit(ctx, transactionID); err != nil {
+		return nil, status.Error(codes.Unavailable, "commit registration transaction")
+	}
+	return &userinternalapi.RegistrationTransactionResponse{}, nil
+}
+
+func (h *handler) RollbackUserRegistration(
+	ctx context.Context,
+	req *userinternalapi.RegistrationTransactionRequest,
+) (*userinternalapi.RegistrationTransactionResponse, error) {
+	transactionID, err := uuid.Parse(req.GetTransactionId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid registration transaction")
+	}
+	if err = h.registration.Rollback(ctx, transactionID); err != nil {
+		return nil, status.Error(codes.Unavailable, "rollback registration transaction")
+	}
+	return &userinternalapi.RegistrationTransactionResponse{}, nil
 }
 
 func (h *handler) CreateUser(
@@ -71,13 +116,6 @@ func (h *handler) FindUserByEmail(
 	return userResponse(user), nil
 }
 
-func userResponse(user domain.User) *userinternalapi.GetUserResponse {
-	return &userinternalapi.GetUserResponse{
-		UserId: user.ID.String(),
-		Fields: &userinternalapi.UserFields{DisplayName: user.DisplayName, FirstName: user.FirstName, LastName: user.LastName, Email: user.Email},
-	}
-}
-
 func (h *handler) UpdateUser(
 	ctx context.Context,
 	req *userinternalapi.UpdateUserRequest,
@@ -101,6 +139,13 @@ func (h *handler) DeleteUser(ctx context.Context, req *userinternalapi.DeleteUse
 		return nil, mapError(err)
 	}
 	return &userinternalapi.DeleteUserResponse{}, nil
+}
+
+func userResponse(user domain.User) *userinternalapi.GetUserResponse {
+	return &userinternalapi.GetUserResponse{
+		UserId: user.ID.String(),
+		Fields: &userinternalapi.UserFields{DisplayName: user.DisplayName, FirstName: user.FirstName, LastName: user.LastName, Email: user.Email},
+	}
 }
 
 func fieldsSpec(fields *userinternalapi.UserFields) app.UserFieldsSpec {

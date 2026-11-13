@@ -11,10 +11,16 @@ import (
 
 type UserService interface {
 	CreateUser(displayName, firstName, lastName, email string) (uuid.UUID, error)
+	CreateUserWithID(id uuid.UUID, displayName, firstName, lastName, email string) error
 	GetUser(id uuid.UUID) (User, error)
 	FindUserByEmail(email string) (User, error)
 	UpdateUser(id uuid.UUID, displayName, firstName, lastName, email string) error
 	RemoveUser(id uuid.UUID) error
+}
+
+type userService struct {
+	repo       UserRepository
+	dispatcher event.Dispatcher
 }
 
 func NewUserService(
@@ -27,23 +33,25 @@ func NewUserService(
 	}
 }
 
-type userService struct {
-	repo       UserRepository
-	dispatcher event.Dispatcher
-}
-
 func (u *userService) CreateUser(displayName, firstName, lastName, email string) (uuid.UUID, error) {
-	if displayName == "" || firstName == "" || lastName == "" || email == "" {
-		return uuid.Nil(), ErrInvalidUser
-	}
-	if _, err := u.repo.FindByEmail(email); err == nil {
-		return uuid.Nil(), ErrEmailTaken
-	} else if !errors.Is(err, ErrUserNotFound) {
-		return uuid.Nil(), err
-	}
 	id, err := u.repo.NextID()
 	if err != nil {
 		return uuid.Nil(), err
+	}
+	if err = u.CreateUserWithID(id, displayName, firstName, lastName, email); err != nil {
+		return uuid.Nil(), err
+	}
+	return id, nil
+}
+
+func (u *userService) CreateUserWithID(id uuid.UUID, displayName, firstName, lastName, email string) error {
+	if id == uuid.Nil() || displayName == "" || firstName == "" || lastName == "" || email == "" {
+		return ErrInvalidUser
+	}
+	if _, err := u.repo.FindByEmail(email); err == nil {
+		return ErrEmailTaken
+	} else if !errors.Is(err, ErrUserNotFound) {
+		return err
 	}
 
 	user := User{
@@ -53,9 +61,9 @@ func (u *userService) CreateUser(displayName, firstName, lastName, email string)
 		LastName:    lastName,
 		Email:       email,
 	}
-	err = u.repo.Store(user)
+	err := u.repo.Store(user)
 	if err != nil {
-		return uuid.Nil(), err
+		return err
 	}
 
 	err = u.dispatcher.Dispatch(&userevents.UserCreated{
@@ -63,10 +71,9 @@ func (u *userService) CreateUser(displayName, firstName, lastName, email string)
 		DisplayName: displayName,
 	})
 	if err != nil {
-		return uuid.Nil(), err
+		return err
 	}
-
-	return user.ID, nil
+	return nil
 }
 
 func (u *userService) FindUserByEmail(email string) (User, error) {

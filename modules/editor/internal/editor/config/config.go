@@ -13,11 +13,20 @@ type Env struct {
 	AMQP         AMQP         `envconfig:"amqp"`
 	Relay        Relay        `envconfig:"relay"`
 	Dependencies Dependencies `envconfig:"dependencies"`
+	Recovery     Recovery     `envconfig:"recovery"`
+}
+
+type Recovery struct {
+	Interval       time.Duration `envconfig:"interval" default:"1s"`
+	AttemptTimeout time.Duration `envconfig:"attempt_timeout" default:"5s"`
+	MaxAttempts    int           `envconfig:"max_attempts" default:"3"`
 }
 
 type Dependencies struct {
-	UserAddress string        `envconfig:"user_address" default:"user-service:8081"`
-	Timeout     time.Duration `envconfig:"timeout" default:"5s"`
+	UserAddress        string        `envconfig:"user_address" default:"user-service:8081"`
+	FilestorageAddress string        `envconfig:"filestorage_address" default:"filestorage-service:8081"`
+	ModuleID           string        `envconfig:"module_id" default:"b8547c76-51fd-4f7c-9c68-8f30c84f61cb"`
+	Timeout            time.Duration `envconfig:"timeout" default:"5s"`
 }
 
 type App struct {
@@ -48,7 +57,7 @@ type MySQL struct {
 
 type AMQP struct {
 	URL            string        `envconfig:"url" default:"amqp://local:local@localhost:5672/"`
-	Queue          string        `envconfig:"queue" default:"editor.echo"`
+	Queue          string        `envconfig:"queue" default:"editor.document-events"`
 	ConnectTimeout time.Duration `envconfig:"connect_timeout" default:"5s"`
 	PrefetchCount  int           `envconfig:"prefetch_count" default:"10"`
 }
@@ -73,8 +82,11 @@ func (c Env) Validate() error {
 	if c.MySQL.Address == "" || c.MySQL.Database == "" || c.MySQL.User == "" || c.AMQP.URL == "" || c.AMQP.Queue == "" || c.HTTP.Address == "" || c.GRPC.Address == "" {
 		return errors.New("database, broker and server configuration must not be empty")
 	}
-	if c.Dependencies.UserAddress == "" || c.Dependencies.Timeout <= 0 {
+	if c.Dependencies.UserAddress == "" || c.Dependencies.FilestorageAddress == "" || c.Dependencies.ModuleID == "" || c.Dependencies.Timeout <= 0 {
 		return errors.New("user dependency is invalid")
+	}
+	if c.Recovery.Interval <= 0 || c.Recovery.AttemptTimeout <= 0 || c.Recovery.MaxAttempts <= 0 {
+		return errors.New("share recovery configuration is invalid")
 	}
 	return nil
 }

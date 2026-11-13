@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/distributed-programming-2026/go-sdk/pkg/event/inbox"
 	"github.com/distributed-programming-2026/go-sdk/pkg/event/outbox"
 	"github.com/distributed-programming-2026/go-sdk/pkg/migrator"
 	"github.com/distributed-programming-2026/go-sdk/pkg/mysql"
@@ -29,6 +30,7 @@ func migrateDatabase(ctx context.Context, logger *slog.Logger, client mysql.Tran
 			name:       "event-outbox",
 			migrations: outbox.Migrations(client),
 		},
+		{name: "event-inbox", migrations: inbox.Migrations(client)},
 	}
 
 	for _, target := range targets {

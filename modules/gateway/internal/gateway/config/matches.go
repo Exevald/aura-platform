@@ -10,25 +10,8 @@ import (
 	"golang.org/x/net/http/httpguts"
 )
 
-func compileMatches(r *Route) error {
-	for i := range r.HeaderMatch {
-		h := &r.HeaderMatch[i]
-		if !httpguts.ValidHeaderFieldName(h.Header) {
-			return errors.New("invalid header match")
-		}
-		re, err := regexp.Compile(h.ValueRegex)
-		if err != nil {
-			return errors.New("invalid header regexp")
-		}
-		h.RE = re
-	}
-	for _, m := range r.AllowedMethods {
-		if !httpguts.ValidHeaderFieldName(m) {
-			return errors.New("invalid HTTP method")
-		}
-	}
-
-	return nil
+func Address(port int) string {
+	return ":" + strconv.Itoa(port)
 }
 
 func (r *Route) Matches(req *http.Request) bool {
@@ -59,6 +42,7 @@ func (r *Route) Matches(req *http.Request) bool {
 	}
 	return true
 }
+
 func (r *Route) MethodAllowed(method string) bool {
 	if len(r.AllowedMethods) == 0 {
 		return true
@@ -70,4 +54,24 @@ func (r *Route) MethodAllowed(method string) bool {
 	}
 	return false
 }
-func Address(port int) string { return ":" + strconv.Itoa(port) }
+
+func compileMatches(r *Route) error {
+	for i := range r.HeaderMatch {
+		h := &r.HeaderMatch[i]
+		if !httpguts.ValidHeaderFieldName(h.Header) {
+			return errors.New("invalid header match")
+		}
+		re, err := regexp.Compile(h.ValueRegex)
+		if err != nil {
+			return errors.New("invalid header regexp")
+		}
+		h.RE = re
+	}
+	for _, m := range r.AllowedMethods {
+		if !httpguts.ValidHeaderFieldName(m) {
+			return errors.New("invalid HTTP method")
+		}
+	}
+
+	return nil
+}

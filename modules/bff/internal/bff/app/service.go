@@ -35,4 +35,6 @@ func (s *Service) UpdateMe(ctx context.Context, profile Profile) (Profile, error
 	return s.users.Get(ctx, profile.UserID)
 }
 
-func (s *Service) Echo(context.Context, string) (uuid.UUID, error) { return uuid.New(), nil }
+func (s *Service) Echo(context.Context, string) (uuid.UUID, error) {
+	return uuid.New(), nil
+}

@@ -18,6 +18,20 @@ type auditRepository struct {
 	client mysql.ClientContext
 }
 
+type auditRow struct {
+	ID            binaryUUID `db:"id"`
+	EventID       string     `db:"event_id"`
+	EventType     string     `db:"event_type"`
+	Producer      string     `db:"producer"`
+	CorrelationID string     `db:"correlation_id"`
+	ActorID       string     `db:"actor_id"`
+	ResourceType  string     `db:"resource_type"`
+	ResourceID    string     `db:"resource_id"`
+	Payload       []byte     `db:"payload"`
+	OccurredAt    time.Time  `db:"occurred_at"`
+	ReceivedAt    time.Time  `db:"received_at"`
+}
+
 func NewAuditRepository(
 	ctx context.Context,
 	client mysql.ClientContext,
@@ -118,20 +132,6 @@ func (r *auditRepository) find(name, query string, arg any) (domain.AuditRecord,
 		return domain.AuditRecord{}, errors.WithStack(err)
 	}
 	return row.toDomainModel(), nil
-}
-
-type auditRow struct {
-	ID            binaryUUID `db:"id"`
-	EventID       string     `db:"event_id"`
-	EventType     string     `db:"event_type"`
-	Producer      string     `db:"producer"`
-	CorrelationID string     `db:"correlation_id"`
-	ActorID       string     `db:"actor_id"`
-	ResourceType  string     `db:"resource_type"`
-	ResourceID    string     `db:"resource_id"`
-	Payload       []byte     `db:"payload"`
-	OccurredAt    time.Time  `db:"occurred_at"`
-	ReceivedAt    time.Time  `db:"received_at"`
 }
 
 func (r auditRow) toDomainModel() domain.AuditRecord {

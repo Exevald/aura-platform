@@ -25,6 +25,7 @@ type AuditRecord struct {
 	OccurredAt    time.Time
 	ReceivedAt    time.Time
 }
+
 type AuditRepository interface {
 	NextID() (uuid.UUID, error)
 	Store(AuditRecord) error

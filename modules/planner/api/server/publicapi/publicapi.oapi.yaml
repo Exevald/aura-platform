@@ -1,0 +1,121 @@
+openapi: 3.0.0
+info: { version: 1.0.0, title: Planner API, x-api-identifier: plannerpublicapi }
+paths:
+  /api/planner/v1/projects:
+    get:
+      operationId: listProjects
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' } ]
+      responses:
+        '200': { description: Projects, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/project' } } } } }
+        '503': { $ref: '#/components/responses/unavailable' }
+    post:
+      operationId: createProject
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/projectInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/project' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/planner/v1/projects/{projectID}:
+    put:
+      operationId: updateProject
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' }, { $ref: '#/components/parameters/projectID' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/projectInput' } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/project' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+    delete:
+      operationId: deleteProject
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' }, { $ref: '#/components/parameters/projectID' } ]
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/planner/v1/projects/{projectID}/tasks:
+    get:
+      operationId: listTasks
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' }, { $ref: '#/components/parameters/projectID' } ]
+      responses:
+        '200': { description: Tasks, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/task' } } } } }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+    post:
+      operationId: createTask
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' }, { $ref: '#/components/parameters/projectID' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/taskInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/task' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+  /api/planner/v1/tasks/{taskID}:
+    put:
+      operationId: updateTask
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' }, { $ref: '#/components/parameters/taskID' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/taskUpdate' } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/task' } } } }
+        '400': { $ref: '#/components/responses/badRequest' }
+        '404': { $ref: '#/components/responses/notFound' }
+        '409': { $ref: '#/components/responses/conflict' }
+        '503': { $ref: '#/components/responses/unavailable' }
+    delete:
+      operationId: deleteTask
+      parameters: [ { $ref: '#/components/parameters/authUser' }, { $ref: '#/components/parameters/workspace' }, { $ref: '#/components/parameters/taskID' } ]
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/notFound' }
+        '503': { $ref: '#/components/responses/unavailable' }
+components:
+  parameters:
+    authUser: { name: X-Auth-User, in: header, required: true, schema: { type: string, format: uuid } }
+    workspace: { name: X-Workspace-ID, in: header, required: true, schema: { type: string, format: uuid } }
+    projectID: { name: projectID, in: path, required: true, schema: { type: string, format: uuid } }
+    taskID: { name: taskID, in: path, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    projectInput: { type: object, required: [name], properties: { name: { type: string, minLength: 1, maxLength: 120 } } }
+    project:
+      allOf:
+        - { $ref: '#/components/schemas/projectInput' }
+        - type: object
+          required: [id, workspaceID, createdAt, updatedAt]
+          properties: { id: { type: string, format: uuid }, workspaceID: { type: string, format: uuid }, createdAt: { type: string, format: date-time }, updatedAt: { type: string, format: date-time } }
+    taskInput:
+      type: object
+      required: [title, description, status, priority, syncToCalendar]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: string }
+        status: { type: string, enum: [todo, in_progress, done] }
+        priority: { type: string, enum: [low, normal, high] }
+        assigneeUserID: { type: string, format: uuid }
+        dueAt: { type: string, format: date-time }
+        syncToCalendar: { type: boolean }
+        calendarID: { type: string, format: uuid }
+        timezone: { type: string }
+    taskUpdate:
+      allOf:
+        - { $ref: '#/components/schemas/taskInput' }
+        - type: object
+          required: [version]
+          properties: { version: { type: integer, format: int64, minimum: 1 } }
+    task:
+      allOf:
+        - { $ref: '#/components/schemas/taskInput' }
+        - type: object
+          required: [id, projectID, version, createdAt, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            projectID: { type: string, format: uuid }
+            calendarEventID: { type: string, format: uuid }
+            version: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    error: { type: object, required: [message], properties: { message: { type: string } } }
+  responses:
+    badRequest: { description: Bad request, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    notFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    conflict: { description: Conflict, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }
+    unavailable: { description: Unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/error' } } } }

@@ -21,22 +21,6 @@ import (
 
 type echoServer interface{}
 
-func echoStream(_ any, stream grpc.ServerStream) error {
-	stream.SetTrailer(metadata.Pairs("x-trailer", "preserved"))
-	for {
-		request := &pb.HttpBody{}
-		err := stream.RecvMsg(request)
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if err = stream.SendMsg(request); err != nil {
-			return err
-		}
-	}
-}
 func TestGRPCUnaryStreamingStatusesAndTrailers(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -102,4 +86,21 @@ routes:
 	require.Equal(t, io.EOF, err)
 	require.Equal(t, "preserved", stream.Trailer().Get("x-trailer")[0],
 		"stream trailers lost")
+}
+
+func echoStream(_ any, stream grpc.ServerStream) error {
+	stream.SetTrailer(metadata.Pairs("x-trailer", "preserved"))
+	for {
+		request := &pb.HttpBody{}
+		err := stream.RecvMsg(request)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err = stream.SendMsg(request); err != nil {
+			return err
+		}
+	}
 }

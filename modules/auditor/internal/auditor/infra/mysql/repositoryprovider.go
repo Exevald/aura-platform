@@ -9,14 +9,14 @@ import (
 	"auditor/internal/auditor/infra/mysql/repository"
 )
 
+type RepositoryProvider struct {
+	client mysql.ClientContext
+}
+
 func NewRepositoryProvider(client mysql.ClientContext) *RepositoryProvider {
 	return &RepositoryProvider{
 		client: client,
 	}
-}
-
-type RepositoryProvider struct {
-	client mysql.ClientContext
 }
 
 func (p *RepositoryProvider) Audit(ctx context.Context) domain.AuditRepository {

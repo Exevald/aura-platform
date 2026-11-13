@@ -1,13 +1,25 @@
 go 1.27.1
 
 use (
+	./e2e
 	./modules/access
+	./modules/appreg
 	./modules/auditor
 	./modules/auth
 	./modules/bff
+	./modules/calendar
 	./modules/editor
+	./modules/filestorage
 	./modules/gateway
+	./modules/mailer
+	./modules/notification
+	./modules/planner
+	./modules/realtime
+	./modules/registerer
 	./modules/session
+	./modules/shortlink
 	./modules/user
+	./modules/usergroup
+	./modules/workspace
 	lib
 )

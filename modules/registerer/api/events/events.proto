@@ -1,0 +1,11 @@
+syntax = "proto3";
+package registererEvents;
+
+option go_package = "/.;registererevents";
+
+message UserRegistered {
+  string credential_id = 1;
+  string user_id = 2;
+  string login = 3;
+  int64 occurred_at_unix = 4;
+}

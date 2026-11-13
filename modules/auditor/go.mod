@@ -3,9 +3,11 @@ module auditor
 go 1.27.1
 
 require (
-	github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.3
+	github.com/distributed-programming-2026/go-sdk/pkg/amqp v0.0.3
+	github.com/distributed-programming-2026/go-sdk/pkg/event v0.0.3
+	github.com/distributed-programming-2026/go-sdk/pkg/logging v0.0.6
 	github.com/distributed-programming-2026/go-sdk/pkg/migrator v0.0.3
-	github.com/distributed-programming-2026/go-sdk/pkg/mysql v0.0.3
+	github.com/distributed-programming-2026/go-sdk/pkg/mysql v0.0.5
 	github.com/distributed-programming-2026/go-sdk/pkg/uow v0.0.3
 	github.com/distributed-programming-2026/lib v0.0.0
 	github.com/go-sql-driver/mysql v1.10.1
@@ -31,7 +33,7 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
-	github.com/distributed-programming-2026/go-sdk/internal/sharedpool v0.0.3 // indirect
+	github.com/distributed-programming-2026/go-sdk/internal/sharedpool v0.0.5 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -58,6 +60,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/rabbitmq/amqp091-go v1.15.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.6 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect

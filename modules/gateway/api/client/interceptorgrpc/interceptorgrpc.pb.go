@@ -1190,6 +1190,7 @@ var file_interceptorgrpc_interceptorgrpc_proto_goTypes = []any{
 	nil,                       // 15: interceptorgrpc.ProcessingContext.PathParametersEntry
 	nil,                       // 16: interceptorgrpc.ProcessingContext.ParametersEntry
 }
+
 var file_interceptorgrpc_interceptorgrpc_proto_depIdxs = []int32{
 	1,  // 0: interceptorgrpc.InterceptRequest.context:type_name -> interceptorgrpc.ProcessingContext
 	3,  // 1: interceptorgrpc.InterceptRequest.requestHeaders:type_name -> interceptorgrpc.HttpHeaders
@@ -1224,7 +1225,10 @@ var file_interceptorgrpc_interceptorgrpc_proto_depIdxs = []int32{
 	0,  // [0:24] is the sub-list for field type_name
 }
 
-func init() { file_interceptorgrpc_interceptorgrpc_proto_init() }
+func init() {
+	file_interceptorgrpc_interceptorgrpc_proto_init()
+}
+
 func file_interceptorgrpc_interceptorgrpc_proto_init() {
 	if File_interceptorgrpc_interceptorgrpc_proto != nil {
 		return

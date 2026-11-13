@@ -74,18 +74,20 @@ func TestRejectedDefinitions(t *testing.T) {
 		t.Run(name, func(t *testing.T) { rejected(t, body) })
 	}
 }
-func rejected(t *testing.T, body string) {
-	t.Helper()
-	dir := t.TempDir()
-	file(t, dir, "invalid.yaml", body)
-	_, err := Load(dir)
-	require.Error(t, err)
-}
+
 func TestMissingAndEmptyConfiguration(t *testing.T) {
 	_, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
 	require.Error(t, err)
 	_, err = Load(t.TempDir())
 	require.Error(t, err)
 	_, err = Load()
+	require.Error(t, err)
+}
+
+func rejected(t *testing.T, body string) {
+	t.Helper()
+	dir := t.TempDir()
+	file(t, dir, "invalid.yaml", body)
+	_, err := Load(dir)
 	require.Error(t, err)
 }

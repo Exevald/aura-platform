@@ -1,0 +1,9 @@
+syntax = "proto3";
+package shortlinkEvents;
+
+option go_package = "/.;shortlinkevents";
+
+message Echo {
+  string ID = 1;
+  string Body = 2;
+}

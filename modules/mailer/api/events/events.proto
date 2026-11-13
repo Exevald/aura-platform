@@ -1,0 +1,5 @@
+syntax = "proto3";
+package mailerEvents;
+option go_package = "/.;mailerevents";
+message MailDelivered { string mail_id = 1; string recipient = 2; int64 occurred_at_unix = 3; }
+message MailDeliveryFailed { string mail_id = 1; string recipient = 2; string error = 3; int64 occurred_at_unix = 4; }

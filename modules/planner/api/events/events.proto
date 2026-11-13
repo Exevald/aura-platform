@@ -1,0 +1,5 @@
+syntax = "proto3";
+package plannerEvents;
+option go_package = "/.;plannerevents";
+message ProjectChanged { string project_id = 1; string workspace_id = 2; string actor_user_id = 3; string action = 4; int64 occurred_at_unix = 5; }
+message TaskChanged { string task_id = 1; string project_id = 2; string workspace_id = 3; string actor_user_id = 4; string action = 5; string assignee_user_id = 6; int64 occurred_at_unix = 7; }

@@ -9,14 +9,14 @@ import (
 	"session/internal/session/infra/mysql/repository"
 )
 
+type RepositoryProvider struct {
+	client mysql.ClientContext
+}
+
 func NewRepositoryProvider(client mysql.ClientContext) *RepositoryProvider {
 	return &RepositoryProvider{
 		client: client,
 	}
-}
-
-type RepositoryProvider struct {
-	client mysql.ClientContext
 }
 
 func (p *RepositoryProvider) Session(ctx context.Context) domain.SessionRepository {

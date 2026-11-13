@@ -12,13 +12,13 @@ import (
 	sessioninternalapi "session/api/server/internalapi"
 )
 
-func NewSession(client sessioninternalapi.SessionServiceClient, timeout time.Duration) app.SessionClient {
-	return &sessionClient{client: client, timeout: timeout}
-}
-
 type sessionClient struct {
 	client  sessioninternalapi.SessionServiceClient
 	timeout time.Duration
+}
+
+func NewSession(client sessioninternalapi.SessionServiceClient, timeout time.Duration) app.SessionClient {
+	return &sessionClient{client: client, timeout: timeout}
 }
 
 func (c *sessionClient) CreateSession(ctx context.Context, userID uuid.UUID, rememberMe bool) (uuid.UUID, time.Time, error) {

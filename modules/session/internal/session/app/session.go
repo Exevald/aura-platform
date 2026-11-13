@@ -5,12 +5,18 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/distributed-programming-2026/go-sdk/pkg/uow"
 	domainevent "github.com/distributed-programming-2026/lib/event"
 
 	"session/internal/session/domain"
-	"session/internal/session/infra/mysql"
 )
+
+type RepositoryProvider interface {
+	Session(context.Context) domain.SessionRepository
+}
+
+type UnitOfWork interface {
+	Execute(context.Context, func(RepositoryProvider) error) error
+}
 
 type DispatcherFactory interface {
 	NewDispatcher(ctx context.Context) domainevent.Dispatcher
@@ -23,8 +29,16 @@ type SessionService interface {
 	RevokeAll(ctx context.Context, userID uuid.UUID) error
 }
 
+type sessionService struct {
+	unit               UnitOfWork
+	dispatcherFactory  DispatcherFactory
+	clock              domain.Clock
+	defaultLifetime    time.Duration
+	persistentLifetime time.Duration
+}
+
 func NewSessionService(
-	unit uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider],
+	unit UnitOfWork,
 	dispatcherFactory DispatcherFactory,
 	defaultLifetime time.Duration,
 	persistentLifetime time.Duration,
@@ -38,20 +52,12 @@ func NewSessionService(
 	}
 }
 
-type sessionService struct {
-	unit               uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider]
-	dispatcherFactory  DispatcherFactory
-	clock              domain.Clock
-	defaultLifetime    time.Duration
-	persistentLifetime time.Duration
-}
-
 func (s *sessionService) Create(
 	ctx context.Context,
 	userID uuid.UUID,
 	persistent bool,
 ) (id uuid.UUID, expiresAt time.Time, err error) {
-	err = s.unit.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+	err = s.unit.Execute(ctx, func(provider RepositoryProvider) error {
 		id, expiresAt, err = s.domainService(ctx, provider).Create(userID, persistent)
 		return err
 	})
@@ -62,7 +68,7 @@ func (s *sessionService) Validate(
 	ctx context.Context,
 	id uuid.UUID,
 ) (result domain.Session, err error) {
-	err = s.unit.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+	err = s.unit.Execute(ctx, func(provider RepositoryProvider) error {
 		result, err = s.domainService(ctx, provider).Validate(id)
 		return err
 	})
@@ -70,20 +76,20 @@ func (s *sessionService) Validate(
 }
 
 func (s *sessionService) Revoke(ctx context.Context, id uuid.UUID) error {
-	return s.unit.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+	return s.unit.Execute(ctx, func(provider RepositoryProvider) error {
 		return s.domainService(ctx, provider).Revoke(id)
 	})
 }
 
 func (s *sessionService) RevokeAll(ctx context.Context, userID uuid.UUID) error {
-	return s.unit.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+	return s.unit.Execute(ctx, func(provider RepositoryProvider) error {
 		return s.domainService(ctx, provider).RevokeAll(userID)
 	})
 }
 
 func (s *sessionService) domainService(
 	ctx context.Context,
-	provider *mysql.RepositoryProvider,
+	provider RepositoryProvider,
 ) domain.SessionService {
 	return domain.NewSessionService(
 		provider.Session(ctx),

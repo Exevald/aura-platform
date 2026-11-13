@@ -5,11 +5,16 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/distributed-programming-2026/go-sdk/pkg/uow"
-
 	"auditor/internal/auditor/domain"
-	"auditor/internal/auditor/infra/mysql"
 )
+
+type RepositoryProvider interface {
+	Audit(context.Context) domain.AuditRepository
+}
+
+type UnitOfWork interface {
+	Execute(context.Context, func(RepositoryProvider) error) error
+}
 
 type AuditEvent struct {
 	EventID       string
@@ -24,17 +29,17 @@ type AuditEvent struct {
 }
 
 type AuditService struct {
-	unit uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider]
+	unit UnitOfWork
 }
 
-func NewAuditService(unit uow.UnitOfWorkWithRepositoryProvider[*mysql.RepositoryProvider]) *AuditService {
+func NewAuditService(unit UnitOfWork) *AuditService {
 	return &AuditService{
 		unit: unit,
 	}
 }
 
 func (s *AuditService) Record(ctx context.Context, event AuditEvent) (id uuid.UUID, err error) {
-	err = s.unit.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+	err = s.unit.Execute(ctx, func(provider RepositoryProvider) error {
 		id, err = domain.NewAuditService(provider.Audit(ctx)).Record(domain.AuditRecord{
 			EventID:       event.EventID,
 			EventType:     event.EventType,
@@ -45,14 +50,14 @@ func (s *AuditService) Record(ctx context.Context, event AuditEvent) (id uuid.UU
 			ResourceID:    event.ResourceID,
 			Payload:       event.Payload,
 			OccurredAt:    event.OccurredAt,
-		})
+		}, time.Now().UTC())
 		return err
 	})
 	return id, err
 }
 
 func (s *AuditService) Get(ctx context.Context, id uuid.UUID) (record domain.AuditRecord, err error) {
-	err = s.unit.ExecuteWithRepositoryProvider(ctx, func(provider *mysql.RepositoryProvider) error {
+	err = s.unit.Execute(ctx, func(provider RepositoryProvider) error {
 		record, err = domain.NewAuditService(provider.Audit(ctx)).Find(id)
 		return err
 	})

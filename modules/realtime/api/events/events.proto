@@ -1,0 +1,4 @@
+syntax = "proto3";
+package realtimeEvents;
+option go_package = "/.;realtimeevents";
+message ClientConnected { string connection_id = 1; string user_id = 2; string workspace_id = 3; int64 occurred_at_unix = 4; }

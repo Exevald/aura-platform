@@ -1,0 +1,5 @@
+syntax = "proto3";
+package filestorageEvents;
+option go_package = "/.;filestorageevents";
+message FileStored { string file_id = 1; string workspace_id = 2; string owner_user_id = 3; string file_name = 4; int64 size_bytes = 5; int64 occurred_at_unix = 6; }
+message FileDeleted { string file_id = 1; string workspace_id = 2; string actor_user_id = 3; int64 occurred_at_unix = 4; }

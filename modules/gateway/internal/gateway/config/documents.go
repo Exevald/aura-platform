@@ -11,6 +11,29 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+func (d *document) parseWeight() error {
+	w, ok := d.data["weight"]
+	if !ok {
+		return nil
+	}
+	switch v := w.(type) {
+	case int:
+		d.weight = v
+	case string:
+		if d.data["kind"] != "gateway/secret/v1" || (v != "min" && v != "max") {
+			return errors.New("invalid weight")
+		}
+		if v == "max" {
+			d.secretPriority = 1
+		} else {
+			d.secretPriority = -1
+		}
+	default:
+		return errors.New("invalid weight")
+	}
+	return nil
+}
+
 func readDocuments(paths []string) ([]document, error) {
 	var docs []document
 	for _, path := range paths {
@@ -44,6 +67,7 @@ func readDocuments(paths []string) ([]document, error) {
 	})
 	return docs, nil
 }
+
 func readFile(file string) ([]document, error) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -74,28 +98,7 @@ func readFile(file string) ([]document, error) {
 		docs = append(docs, d)
 	}
 }
-func (d *document) parseWeight() error {
-	w, ok := d.data["weight"]
-	if !ok {
-		return nil
-	}
-	switch v := w.(type) {
-	case int:
-		d.weight = v
-	case string:
-		if d.data["kind"] != "gateway/secret/v1" || (v != "min" && v != "max") {
-			return errors.New("invalid weight")
-		}
-		if v == "max" {
-			d.secretPriority = 1
-		} else {
-			d.secretPriority = -1
-		}
-	default:
-		return errors.New("invalid weight")
-	}
-	return nil
-}
+
 func noNull(v any) error {
 	if v == nil {
 		return errors.New("null is unsupported")
@@ -116,6 +119,7 @@ func noNull(v any) error {
 	}
 	return nil
 }
+
 func merge(dst, src map[string]any) {
 	for k, v := range src {
 		if sm, ok := v.(map[string]any); ok {

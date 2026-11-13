@@ -1,24 +1,9 @@
 package mysql
 
-import (
-	"context"
+import "github.com/distributed-programming-2026/go-sdk/pkg/mysql"
 
-	"github.com/distributed-programming-2026/go-sdk/pkg/mysql"
+type RepositoryProvider struct{}
 
-	"bff/internal/bff/domain"
-	"bff/internal/bff/infra/mysql/repository"
-)
-
-func NewRepositoryProvider(client mysql.ClientContext) *RepositoryProvider {
-	return &RepositoryProvider{
-		client: client,
-	}
-}
-
-type RepositoryProvider struct {
-	client mysql.ClientContext
-}
-
-func (p *RepositoryProvider) Echo(ctx context.Context) domain.EchoRepository {
-	return repository.NewEchoRepository(ctx, p.client)
+func NewRepositoryProvider(_ mysql.ClientContext) *RepositoryProvider {
+	return &RepositoryProvider{}
 }

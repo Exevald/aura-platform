@@ -70,12 +70,8 @@ run = "golangci-lint run"
 [tasks.integration-tests]
 depends = ["build"]
 run = [
-    "mise run //modules/user:build",
     "mise run //modules/session:build",
-	"mise run //modules/access:build",
-    "docker build --tag distributed-programming-user:integration ../user",
     "docker build --tag distributed-programming-session:integration ../session",
-	"docker build --tag distributed-programming-access:integration ../access",
     "docker build --tag distributed-programming-auth:integration .",
     "go test -v -count=1 ./internal/integration-tests",
 ]

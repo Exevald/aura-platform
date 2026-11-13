@@ -14,13 +14,13 @@ import (
 	"session/internal/session/domain"
 )
 
-func NewHandler(svc app.SessionService) sessioninternalapi.SessionServiceServer {
-	return &handler{svc: svc}
-}
-
 type handler struct {
 	svc app.SessionService
 	sessioninternalapi.UnimplementedSessionServiceServer
+}
+
+func NewHandler(svc app.SessionService) sessioninternalapi.SessionServiceServer {
+	return &handler{svc: svc}
 }
 
 func (h *handler) CreateSession(

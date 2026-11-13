@@ -1,0 +1,12 @@
+syntax = "proto3";
+package workspaceInternalAPI;
+option go_package = "/.;workspaceinternalapi";
+
+service WorkspaceService {
+  rpc EnsurePersonalWorkspace(EnsurePersonalWorkspaceRequest) returns (WorkspaceResponse);
+  rpc CheckMembership(CheckMembershipRequest) returns (CheckMembershipResponse);
+}
+message EnsurePersonalWorkspaceRequest { string workspace_id = 1; string user_id = 2; string name = 3; }
+message CheckMembershipRequest { string workspace_id = 1; string user_id = 2; }
+message CheckMembershipResponse { bool allowed = 1; string role = 2; string kind = 3; }
+message WorkspaceResponse { string workspace_id = 1; string kind = 2; string name = 3; }

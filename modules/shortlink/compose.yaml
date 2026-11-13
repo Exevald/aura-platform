@@ -1,0 +1,33 @@
+services:
+  shortlink-service:
+    image: distributed-programming-shortlink:local
+    build:
+      context: ./modules/shortlink
+      dockerfile: Dockerfile
+    environment:
+      SHORTLINK_MYSQL_ADDRESS: mysql:3306
+      SHORTLINK_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${SHORTLINK_GRPC_PORT:-8081}:8081"
+      - "${SHORTLINK_HTTP_PORT:-8082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  shortlink-message-handler:
+    image: distributed-programming-shortlink:local
+    command: [message-handler]
+    environment:
+      SHORTLINK_MYSQL_ADDRESS: mysql:3306
+      SHORTLINK_AMQP_URL: amqp://local:local@rabbitmq:5672/
+    ports:
+      - "${SHORTLINK_MESSAGE_HANDLER_PORT:-8083}:8082"
+    depends_on:
+      shortlink-service:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy

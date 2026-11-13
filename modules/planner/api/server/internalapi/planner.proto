@@ -1,0 +1,6 @@
+syntax = "proto3";
+package plannerInternalAPI;
+option go_package = "/.;plannerinternalapi";
+service PlannerService { rpc GetTask(GetTaskRequest) returns (TaskResponse); }
+message GetTaskRequest { string task_id = 1; string workspace_id = 2; }
+message TaskResponse { string task_id = 1; string project_id = 2; string title = 3; string status = 4; int64 version = 5; }

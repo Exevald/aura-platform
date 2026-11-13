@@ -26,11 +26,11 @@ test('restores an existing session instead of showing login', async () => {
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
     const url = String(input)
     if (url === '/api/bff/v1/me') return Promise.resolve(jsonResponse(profile))
-    if (url === '/api/editor/v1/documents') return Promise.resolve(jsonResponse([]))
+    if (['/api/usergroups/v1/groups','/api/access/v1/modules','/api/access/v1/group-module-accesses'].includes(url)) return Promise.resolve(jsonResponse([]))
     return Promise.resolve(jsonResponse({ message: 'not found' }, 404))
   }))
   render(<MemoryRouter initialEntries={['/login']}><App/></MemoryRouter>)
-  expect(await screen.findByRole('heading', { name: 'Документы' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Добро пожаловать, Ada' })).toBeInTheDocument()
 })
 
 test('detects a cross-subdomain login when the login tab receives focus', async () => {
@@ -40,7 +40,7 @@ test('detects a cross-subdomain login when the login tab receives focus', async 
     if (url === '/api/bff/v1/me') {
       return Promise.resolve(authenticated ? jsonResponse(profile) : jsonResponse({ message: 'authentication required' }, 401))
     }
-    if (url === '/api/editor/v1/documents') return Promise.resolve(jsonResponse([]))
+    if (['/api/usergroups/v1/groups','/api/access/v1/modules','/api/access/v1/group-module-accesses'].includes(url)) return Promise.resolve(jsonResponse([]))
     return Promise.resolve(jsonResponse({ message: 'not found' }, 404))
   }))
   render(<MemoryRouter initialEntries={['/login']}><App/></MemoryRouter>)
@@ -49,7 +49,7 @@ test('detects a cross-subdomain login when the login tab receives focus', async 
   authenticated = true
   window.dispatchEvent(new Event('focus'))
 
-  expect(await screen.findByRole('heading', { name: 'Документы' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Добро пожаловать, Ada' })).toBeInTheDocument()
 })
 
 test('revalidates the session when the product tab receives focus', async () => {

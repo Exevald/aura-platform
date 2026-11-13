@@ -12,18 +12,18 @@ type Dispatcher interface {
 	Dispatch(message proto.Message) error
 }
 
+type dispatcherProxy struct {
+	ctx      context.Context
+	producer string
+	d        event.Dispatcher
+}
+
 func NewDispatcherProxy(ctx context.Context, producer string, d event.Dispatcher) Dispatcher {
 	return &dispatcherProxy{
 		ctx:      ctx,
 		producer: producer,
 		d:        d,
 	}
-}
-
-type dispatcherProxy struct {
-	ctx      context.Context
-	producer string
-	d        event.Dispatcher
 }
 
 func (d dispatcherProxy) Dispatch(message proto.Message) error {

@@ -40,30 +40,6 @@ func TestMain(m *testing.M) {
 	os.Exit(runTests(m))
 }
 
-func runTests(m *testing.M) (exitCode int) {
-	testEnv = &environment{}
-	defer func() {
-		err := testEnv.close()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			exitCode = 1
-		}
-		if exitCode != 0 {
-			fmt.Fprintln(os.Stderr, testEnv.logs.String())
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	err := testEnv.prepare(ctx)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	return m.Run()
-}
-
 func (e *environment) prepare(ctx context.Context) error {
 	err := envconfig.Process("integration_defaults", &e.conf)
 	if err != nil {
@@ -113,22 +89,10 @@ func (e *environment) prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err = e.startDependencyDatabase(ctx, "user", "user-mysql"); err != nil {
-		return err
-	}
 	if err = e.startDependencyDatabase(ctx, "session", "session-mysql"); err != nil {
 		return err
 	}
-	if err = e.startDependencyDatabase(ctx, "access", "access-mysql"); err != nil {
-		return err
-	}
-	if _, err = e.startDependencyApplication(ctx, "user", "user-mysql"); err != nil {
-		return err
-	}
 	if _, err = e.startDependencyApplication(ctx, "session", "session-mysql"); err != nil {
-		return err
-	}
-	if _, err = e.startDependencyApplication(ctx, "access", "access-mysql"); err != nil {
 		return err
 	}
 
@@ -252,9 +216,7 @@ func (e *environment) startApplication(ctx context.Context, command string) (tes
 			prefix + "APP_GRACE_TIMEOUT":            e.conf.App.GraceTimeout.String(),
 			prefix + "RELAY_INTERVAL":               e.conf.Relay.Interval.String(),
 			prefix + "RELAY_PUBLISH_TIMEOUT":        e.conf.Relay.PublishTimeout.String(),
-			prefix + "DEPENDENCIES_USER_ADDRESS":    "user:8081",
 			prefix + "DEPENDENCIES_SESSION_ADDRESS": "session:8081",
-			prefix + "DEPENDENCIES_ACCESS_ADDRESS":  "access:8081",
 			prefix + "DEPENDENCIES_TIMEOUT":         "5s",
 			prefix + "COOKIE_SECURE":                "false",
 		},
@@ -286,6 +248,30 @@ func (e *environment) close() error {
 		errs = append(errs, v())
 	}
 	return errors.Join(errs...)
+}
+
+func runTests(m *testing.M) (exitCode int) {
+	testEnv = &environment{}
+	defer func() {
+		err := testEnv.close()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			exitCode = 1
+		}
+		if exitCode != 0 {
+			fmt.Fprintln(os.Stderr, testEnv.logs.String())
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	err := testEnv.prepare(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return m.Run()
 }
 
 func containerAddress(ctx context.Context, container testcontainers.Container, port string) (string, error) {

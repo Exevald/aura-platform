@@ -9,6 +9,8 @@ import (
 	"github.com/distributed-programming-2026/gateway/internal/gateway/config"
 )
 
+var errBodyLimit = errors.New("body limit exceeded")
+
 func (g *Gateway) buffered(route *config.Route, response bool) bool {
 	for _, i := range route.Interceptors {
 		if (!response && i.ProcessingMode.RequestBody == config.BodyBuffered) || (response && i.ProcessingMode.ResponseBody == config.BodyBuffered) {
@@ -17,6 +19,7 @@ func (g *Gateway) buffered(route *config.Route, response bool) bool {
 	}
 	return false
 }
+
 func (g *Gateway) bodyLimit(route *config.Route, response bool) int64 {
 	var limit int64
 	for _, i := range route.Interceptors {
@@ -37,23 +40,6 @@ func (g *Gateway) bodyLimit(route *config.Route, response bool) int64 {
 	return limit
 }
 
-var errBodyLimit = errors.New("body limit exceeded")
-
-func readLimited(body io.ReadCloser, limit int64) ([]byte, error) {
-	if body == nil {
-		return []byte{}, nil
-	}
-	defer func() { _ = body.Close() }()
-	b, err := io.ReadAll(io.LimitReader(body, limit+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(b)) > limit {
-		return nil, errBodyLimit
-	}
-	return b, nil
-}
-
 // requestPhase writes an immediate response or error and reports whether processing stopped.
 func (g *Gateway) requestPhase(w http.ResponseWriter, x *exchange, phase string, body []byte) bool {
 	response, err := g.phase(x, phase, nil, body)
@@ -68,6 +54,7 @@ func (g *Gateway) requestPhase(w http.ResponseWriter, x *exchange, phase string,
 	g.write(w, x, response)
 	return true
 }
+
 func (g *Gateway) processRequestBody(w http.ResponseWriter, x *exchange) bool {
 	if x.requestReplaced || !g.buffered(x.route, false) {
 		return false
@@ -86,6 +73,22 @@ func (g *Gateway) processRequestBody(w http.ResponseWriter, x *exchange) bool {
 	}
 	return len(x.request.Trailer) > 0 && g.requestPhase(w, x, config.RequestTrailers, nil)
 }
+
+func readLimited(body io.ReadCloser, limit int64) ([]byte, error) {
+	if body == nil {
+		return []byte{}, nil
+	}
+	defer func() { _ = body.Close() }()
+	b, err := io.ReadAll(io.LimitReader(body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, errBodyLimit
+	}
+	return b, nil
+}
+
 func requestReadError(err error) error {
 	if timeout(err) {
 		return failure("request_body_read_timeout", 408)

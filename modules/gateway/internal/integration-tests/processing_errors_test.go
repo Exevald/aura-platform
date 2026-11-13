@@ -39,6 +39,7 @@ func TestBufferedResponseReadErrors(t *testing.T) {
 		})
 	}
 }
+
 func TestFailedLocalResponseProcessorIsNotRetried(t *testing.T) {
 	processor := grpcServer(t, func(context.Context, *pb.InterceptRequest) (*pb.InterceptResponse, error) {
 		return nil, fmt.Errorf("processor unavailable")
@@ -47,6 +48,7 @@ func TestFailedLocalResponseProcessorIsNotRetried(t *testing.T) {
 	status, _, _ := request(t, s, "GET", "/", "", nil)
 	require.Equal(t, 502, status)
 }
+
 func TestUpgradeBodyProcessingRejected(t *testing.T) {
 	for _, buffered := range []bool{false, true} {
 		t.Run(fmt.Sprint(buffered), func(t *testing.T) {
@@ -68,6 +70,7 @@ func TestUpgradeBodyProcessingRejected(t *testing.T) {
 		})
 	}
 }
+
 func TestPendingHeadersAppliedToImmediateAndOverridden(t *testing.T) {
 	first := func(context.Context, *pb.InterceptRequest) (*pb.InterceptResponse, error) {
 		return ok(&pb.ContinueResponse{ResponseHeaderMutation: set("X-Previous", "previous")}), nil
@@ -81,11 +84,13 @@ func TestPendingHeadersAppliedToImmediateAndOverridden(t *testing.T) {
 	require.Equal(t, []string{"immediate"}, h.Values("X-Previous"))
 	require.Equal(t, []string{"a=1", "b=2"}, h.Values("Set-Cookie"))
 }
+
 func TestNoMatchingInternalRedirectHasNoImplicitTarget(t *testing.T) {
 	s := gateway(t, "kind: gateway/service/v1\nname: routes\nroutes: [{pattern: '^/', internalRedirect: {old: '^/other$', new: /final}}]\n")
 	status, _, _ := request(t, s, "GET", "/missing", "", nil)
 	require.Equal(t, 404, status)
 }
+
 func TestRESTTimeoutCancelsProcessor(t *testing.T) {
 	canceled := make(chan struct{})
 	processor := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {

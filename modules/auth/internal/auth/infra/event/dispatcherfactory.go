@@ -8,16 +8,16 @@ import (
 	domainevent "github.com/distributed-programming-2026/lib/event"
 )
 
+type DispatcherFactory struct {
+	producer   string
+	dispatcher event.Dispatcher
+}
+
 func NewDispatcherFactory(producer string, dispatcher event.Dispatcher) *DispatcherFactory {
 	return &DispatcherFactory{
 		producer:   producer,
 		dispatcher: dispatcher,
 	}
-}
-
-type DispatcherFactory struct {
-	producer   string
-	dispatcher event.Dispatcher
 }
 
 func (f *DispatcherFactory) NewDispatcher(ctx context.Context) domainevent.Dispatcher {
