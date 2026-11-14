@@ -56,3 +56,17 @@ test('allows the owner to assign a module before adding members', () => {
     fireEvent.click(save)
     expect(onSetModules).toHaveBeenCalledWith(group.id, [modules[1].id])
 })
+
+test('sends unique module IDs when existing access data contains duplicates', () => {
+    const onSetModules = vi.fn()
+    render(<GroupsView groups={[group]} modules={modules}
+                       accesses={[{groupID: group.id, moduleIDs: [modules[0].id, modules[0].id, modules[1].id, modules[1].id]}]}
+                       error="" onCreate={vi.fn()} onRename={vi.fn()} onDelete={vi.fn()} onAdd={vi.fn()}
+                       onRemove={vi.fn()} onSetModules={onSetModules}/>)
+
+    const save = screen.getByRole('button', {name: 'Сохранить доступы'})
+    expect(save).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Короткие ссылки'))
+    fireEvent.click(save)
+    expect(onSetModules).toHaveBeenCalledWith(group.id, [modules[0].id])
+})

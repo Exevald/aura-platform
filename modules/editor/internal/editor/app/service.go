@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"editor/internal/editor/domain/model"
-	service2 "editor/internal/editor/domain/service"
+	domainservice "editor/internal/editor/domain/service"
 	"errors"
 	"time"
 	"uuid"
@@ -185,7 +185,7 @@ func (s *service) CreateModuleShare(
 	groupID uuid.UUID,
 ) (share model.ModuleShare, err error) {
 	err = s.unit.Execute(ctx, func(p RepositoryProvider) error {
-		share, err = service2.NewModuleShareService(
+		share, err = domainservice.NewModuleShareService(
 			p.ModuleShare(ctx),
 			s.dispatch.NewDispatcher(ctx),
 		).Create(s.moduleID, groupID, actor)
@@ -200,7 +200,7 @@ func (s *service) GetModuleShare(
 	shareID uuid.UUID,
 ) (share model.ModuleShare, err error) {
 	err = s.unit.Execute(ctx, func(p RepositoryProvider) error {
-		share, err = service2.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Get(shareID)
+		share, err = domainservice.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Get(shareID)
 		if err == nil && share.OwnerUserID != actor {
 			return model.ErrShareNotFound
 		}
@@ -211,7 +211,7 @@ func (s *service) GetModuleShare(
 
 func (s *service) ListModuleShares(ctx context.Context, actor uuid.UUID) (out []model.ModuleShare, err error) {
 	err = s.unit.Execute(ctx, func(p RepositoryProvider) error {
-		out, err = service2.NewModuleShareService(
+		out, err = domainservice.NewModuleShareService(
 			p.ModuleShare(ctx),
 			s.dispatch.NewDispatcher(ctx),
 		).List(actor)
@@ -222,7 +222,7 @@ func (s *service) ListModuleShares(ctx context.Context, actor uuid.UUID) (out []
 
 func (s *service) DeleteModuleShare(ctx context.Context, actor, shareID uuid.UUID) (out model.ModuleShare, err error) {
 	err = s.unit.Execute(ctx, func(p RepositoryProvider) error {
-		shareService := service2.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx))
+		shareService := domainservice.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx))
 		share, findErr := shareService.Get(shareID)
 		if findErr != nil {
 			return findErr
@@ -238,25 +238,25 @@ func (s *service) DeleteModuleShare(ctx context.Context, actor, shareID uuid.UUI
 
 func (s *service) ActivateModuleShare(ctx context.Context, shareID uuid.UUID) error {
 	return s.unit.Execute(ctx, func(p RepositoryProvider) error {
-		return service2.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Activate(shareID)
+		return domainservice.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Activate(shareID)
 	})
 }
 
 func (s *service) RejectModuleShare(ctx context.Context, shareID uuid.UUID, reason string) error {
 	return s.unit.Execute(ctx, func(p RepositoryProvider) error {
-		return service2.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Reject(shareID, reason)
+		return domainservice.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Reject(shareID, reason)
 	})
 }
 
 func (s *service) CompleteModuleShareRevocation(ctx context.Context, shareID uuid.UUID, reason string) error {
 	return s.unit.Execute(ctx, func(p RepositoryProvider) error {
-		return service2.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Revoked(shareID, reason)
+		return domainservice.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Revoked(shareID, reason)
 	})
 }
 
 func (s *service) RecoverModuleShares(ctx context.Context, now time.Time, attemptTimeout time.Duration, maxAttempts int) error {
 	return s.unit.Execute(ctx, func(p RepositoryProvider) error {
-		return service2.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Recover(now, attemptTimeout, maxAttempts)
+		return domainservice.NewModuleShareService(p.ModuleShare(ctx), s.dispatch.NewDispatcher(ctx)).Recover(now, attemptTimeout, maxAttempts)
 	})
 }
 
@@ -330,14 +330,20 @@ func (s *service) Permissions(ctx context.Context, actor, workspace, id uuid.UUI
 		if getErr != nil {
 			return nil, getErr
 		}
-		result = append(result, Permission{UserID: value.UserID, Email: user.Email, DisplayName: user.DisplayName, Role: value.Role, UpdatedAt: value.UpdatedAt})
+		result = append(result, Permission{
+			UserID:      value.UserID,
+			Email:       user.Email,
+			DisplayName: user.DisplayName,
+			Role:        value.Role,
+			UpdatedAt:   value.UpdatedAt,
+		})
 	}
 	return result, nil
 }
 
-func (s *service) domainService(ctx context.Context, p RepositoryProvider) service2.DocumentService {
+func (s *service) domainService(ctx context.Context, p RepositoryProvider) domainservice.DocumentService {
 	repository := p.Document(ctx)
-	return service2.NewService(repository, s.dispatch.NewDispatcher(ctx), func(actor, document uuid.UUID) (model.Role, error) {
+	return domainservice.NewService(repository, s.dispatch.NewDispatcher(ctx), func(actor, document uuid.UUID) (model.Role, error) {
 		role, err := repository.FindRole(document, actor)
 		if errors.Is(err, model.ErrDocumentNotFound) {
 			return "", nil

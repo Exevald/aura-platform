@@ -138,7 +138,7 @@ func TestGroupGrantIsIdempotentAndCompensatesOnlyItsSource(t *testing.T) {
 		user,
 		module,
 		model.EffectAllow,
-		"registration:test",
+		"direct:test",
 	)
 	require.NoError(t, err)
 	op := model.ModuleShare{ShareID: share, ModuleID: module, GroupID: group, OwnerUserID: uuid.New()}
@@ -147,7 +147,7 @@ func TestGroupGrantIsIdempotentAndCompensatesOnlyItsSource(t *testing.T) {
 	require.Len(t, accesses.values, 2)
 	require.NoError(t, service.Cancel(share, module, group, "failed"))
 	require.Len(t, accesses.values, 1)
-	require.Equal(t, "registration:test", accesses.values[0].SourceID)
+	require.Equal(t, "direct:test", accesses.values[0].SourceID)
 	require.IsType(t, &accessevents.GroupModuleAccessRevoked{}, events.values[len(events.values)-1])
 }
 

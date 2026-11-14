@@ -1,12 +1,15 @@
 import {useEffect, useState} from 'react'
+import {useOutletContext} from 'react-router-dom'
 import {api, type Calendar, type CalendarEvent} from '../model/api'
 import {CalendarView} from '../views/ProductViews'
+import type {ShellContext} from '../views/ShellView'
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Ошибка загрузки'
 }
 
 export function CalendarPresenter() {
+  const {profile} = useOutletContext<ShellContext>()
   const [calendars, setCalendars] = useState<Calendar[]>([])
   const [selected, setSelected] = useState('')
   const [events, setEvents] = useState<CalendarEvent[]>([])
@@ -41,6 +44,7 @@ export function CalendarPresenter() {
   }, [selected])
 
   return <CalendarView
+    profile={profile}
     calendars={calendars}
     selected={selected}
     events={events}

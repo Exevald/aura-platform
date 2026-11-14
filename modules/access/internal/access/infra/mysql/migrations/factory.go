@@ -7,6 +7,7 @@ import (
 
 var migrations = []mysqlMigration{
 	Version1791619307,
+	Version1791619308,
 }
 
 type mysqlMigration func(client mysql.ClientContext) migrator.Migration

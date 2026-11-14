@@ -10,14 +10,22 @@ export function ShellPresenter() {
     const [profile, setProfile] = useState<Profile | null>(null)
     const [failed, setFailed] = useState(false)
     const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-    const [workspaceID, setWorkspaceID] = useState(() => {
-        const storage = window.localStorage
-        return typeof storage?.getItem === 'function' ? storage.getItem('aura-workspace-id') ?? '' : ''
-    })
+    const [workspaceID, setWorkspaceID] = useState('')
 
-    const loadProfile = useCallback(async () => {
+    const loadSession = useCallback(async () => {
         try {
-            setProfile(await api.me())
+            const currentProfile = await api.me()
+            const items = await api.workspaces()
+            const savedID = window.localStorage.getItem('aura-workspace-id')
+            const selectedID = items.find(item => item.id === savedID)?.id ?? items[0]?.id
+            if (!selectedID) {
+                setFailed(true)
+                return
+            }
+            window.localStorage.setItem('aura-workspace-id', selectedID)
+            setWorkspaceID(selectedID)
+            setWorkspaces(items)
+            setProfile(currentProfile)
             setFailed(false)
         } catch (error) {
             if (error instanceof ApiError && error.status === 401) navigate('/login')
@@ -26,33 +34,22 @@ export function ShellPresenter() {
     }, [navigate])
 
     useEffect(() => {
-        api.workspaces().then(items => {
-            setWorkspaces(items)
-            if (!workspaceID && items[0]) {
-                if (typeof window.localStorage?.setItem === 'function') window.localStorage.setItem('aura-workspace-id', items[0].id)
-                setWorkspaceID(items[0].id)
-            }
-        }).catch(() => setWorkspaces([]))
-    }, [workspaceID])
-
-    useEffect(() => {
-        api.me().then((currentProfile) => {
-            setProfile(currentProfile)
-            setFailed(false)
-        }).catch((error) => {
-            if (error instanceof ApiError && error.status === 401) navigate('/login')
-            else setFailed(true)
-        })
-    }, [navigate])
+        void Promise.resolve().then(loadSession)
+    }, [loadSession])
 
     useEffect(() => {
         const unsubscribe = sessionCoordinator.subscribe((event) => {
-            if (event === 'logged-out') navigate('/login', {replace: true})
-            else void loadProfile()
+            if (event === 'logged-out') {
+                window.localStorage.removeItem('aura-workspace-id')
+                navigate('/login', {replace: true})
+            } else {
+                setProfile(null)
+                void loadSession()
+            }
         })
-        const revalidate = () => void loadProfile()
+        const revalidate = () => void loadSession()
         const revalidateVisible = () => {
-            if (document.visibilityState === 'visible') void loadProfile()
+            if (document.visibilityState === 'visible') void loadSession()
         }
         window.addEventListener('focus', revalidate)
         document.addEventListener('visibilitychange', revalidateVisible)
@@ -61,7 +58,7 @@ export function ShellPresenter() {
             window.removeEventListener('focus', revalidate)
             document.removeEventListener('visibilitychange', revalidateVisible)
         }
-    }, [loadProfile, navigate])
+    }, [loadSession, navigate])
 
     async function logout() {
         try {
@@ -78,7 +75,7 @@ export function ShellPresenter() {
     if (!profile) return <StateView title="Загружаем Aura…"/>
 
     function selectWorkspace(id: string) {
-        if (typeof window.localStorage?.setItem === 'function') window.localStorage.setItem('aura-workspace-id', id)
+        window.localStorage.setItem('aura-workspace-id', id)
         setWorkspaceID(id)
         location.reload()
     }

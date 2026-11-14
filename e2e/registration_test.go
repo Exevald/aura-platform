@@ -199,7 +199,7 @@ func requireCountsEventually(t *testing.T, before counts, increment int) {
 		current := rowCountsCollect(collect, t)
 		require.Equal(collect, before.credentials+increment, current.credentials)
 		require.Equal(collect, before.users+increment, current.users)
-		require.Equal(collect, before.accesses+increment, current.accesses)
+		require.Equal(collect, before.accesses, current.accesses)
 	}, 5*time.Second, 50*time.Millisecond)
 }
 

@@ -155,7 +155,7 @@ export const api = {
     groupModuleAccesses: () => request<GroupModuleAccess[]>('/api/access/v1/group-module-accesses'),
     setGroupModules: (groupID: string, moduleIDs: string[]) => request<GroupModuleAccess>(`/api/access/v1/groups/${groupID}/modules`, {
         method: 'PUT',
-        body: JSON.stringify({moduleIDs})
+        body: JSON.stringify({moduleIDs: [...new Set(moduleIDs)]})
     }),
     shortLinks: () => request<ShortLink[]>('/api/shortlink/v1/links'),
     createShortLink: (targetURL: string) => request<ShortLink>('/api/shortlink/v1/links', {

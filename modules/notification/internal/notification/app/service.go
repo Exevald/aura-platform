@@ -58,7 +58,7 @@ func (s *Service) Create(ctx context.Context, v domain.Notification) (out domain
 	delivery := out
 	go func() {
 		deliveryCtx := context.WithoutCancel(ctx)
-		if s.realtime != nil {
+		if s.realtime != nil && delivery.UserID != uuid.Nil() {
 			payload, _ := json.Marshal(delivery)
 			_ = s.realtime.Publish(deliveryCtx, delivery, payload)
 		}

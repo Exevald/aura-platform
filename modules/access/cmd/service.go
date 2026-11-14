@@ -55,7 +55,7 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 	if err = db.xa.Validate(ctx); err != nil {
 		return err
 	}
-	registration := registrationinfra.New(db.xa, eventinfra.NewDispatcherFactory(appID, dispatcher))
+	registration := registrationinfra.New(db.xa)
 
 	err = connection.Start()
 	if err != nil {

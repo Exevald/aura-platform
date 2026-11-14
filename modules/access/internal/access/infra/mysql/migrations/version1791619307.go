@@ -22,12 +22,11 @@ func (v *version1791619307) Version() int64 {
 }
 
 func (v *version1791619307) Description() string {
-	return "Create module access tables"
+	return "Create module access table"
 }
 
 func (v *version1791619307) Up(ctx context.Context) error {
-	const (
-		sqlCreateModuleAccessTableQuery = `
+	const sqlCreateModuleAccessTableQuery = `
 			CREATE TABLE IF NOT EXISTS module_access (
 			    id BINARY(16) NOT NULL PRIMARY KEY,
 			    user_id BINARY(16) NOT NULL,
@@ -40,23 +39,6 @@ func (v *version1791619307) Up(ctx context.Context) error {
 			    INDEX module_access_user_module_idx(user_id, module_id)
 			) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
 		`
-		sqlCreateModuleShareOperationTableQuery = `
-			CREATE TABLE IF NOT EXISTS module_share_operation (
-			    share_id BINARY(16) NOT NULL PRIMARY KEY,
-			    module_id BINARY(16) NOT NULL,
-			    group_id BINARY(16) NOT NULL,
-			    owner_user_id BINARY(16) NOT NULL,
-			    status ENUM('granted', 'cancelled') NOT NULL,
-			    created_at DATETIME(6) NOT NULL,
-			    updated_at DATETIME(6) NOT NULL,
-			    INDEX module_share_operation_group_idx(group_id, status)
-			) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-		`
-	)
-
-	if _, err := v.client.ExecContext(ctx, "create-module-access-table", sqlCreateModuleAccessTableQuery); err != nil {
-		return err
-	}
-	_, err := v.client.ExecContext(ctx, "create-module-share-operation-table", sqlCreateModuleShareOperationTableQuery)
+	_, err := v.client.ExecContext(ctx, "create-module-access-table", sqlCreateModuleAccessTableQuery)
 	return err
 }

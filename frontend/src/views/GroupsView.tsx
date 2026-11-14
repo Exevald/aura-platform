@@ -14,13 +14,14 @@ function ModulePicker({modules, selected, onSave}: {
     selected: string[];
     onSave: (ids: string[]) => void
 }) {
-    const [value, setValue] = useState(selected)
+    const selectedIDs = [...new Set(selected)]
+    const [value, setValue] = useState(selectedIDs)
 
     function toggle(id: string) {
         setValue(items => items.includes(id) ? items.filter(item => item !== id) : [...items, id])
     }
 
-    const changed = value.length !== selected.length || value.some(id => !selected.includes(id))
+    const changed = value.length !== selectedIDs.length || value.some(id => !selectedIDs.includes(id))
     return <div className="module-picker">
         <div className="subsection-heading"><span><Boxes size={18}/></span>
             <div><strong>Доступные модули</strong>
@@ -32,7 +33,7 @@ function ModulePicker({modules, selected, onSave}: {
                    onChange={() => toggle(module.id)}/><span><strong>{module.name}</strong><small>{module.code === 'editor' ? 'Создание и совместная работа' : module.code === 'shortlink' ? 'Компактные ссылки и переходы' : module.code === 'calendar' ? 'События и напоминания' : 'Проекты и задачи'}</small></span>
         </label>)}
         </div>
-        <button className="secondary" onClick={() => onSave(value)} disabled={!changed}><Save size={16}/> Сохранить
+        <button className="secondary" onClick={() => onSave([...new Set(value)])} disabled={!changed}><Save size={16}/> Сохранить
             доступы
         </button>
     </div>
@@ -89,7 +90,7 @@ export function GroupsView({
             <div className="state compact"><span className="state-icon"><Users size={27}/></span><h2>Групп пока нет</h2>
                 <p>Создайте группу, добавьте участников и выберите доступные им модули.</p></div>}
         <div className="group-grid">{groups.map(group => {
-            const selected = accesses.find(access => access.groupID === group.id)?.moduleIDs ?? []
+            const selected = [...new Set(accesses.find(access => access.groupID === group.id)?.moduleIDs ?? [])]
             return <section className="settings-card" key={group.id}>
                 <div className="group-card-header"><GroupNameEditor key={group.name} group={group} onRename={onRename}/>
                     <button className="icon-button danger" aria-label={`Удалить группу ${group.name}`}

@@ -7,6 +7,7 @@ services:
     environment:
       CALENDAR_MYSQL_ADDRESS: mysql:3306
       CALENDAR_AMQP_URL: amqp://local:local@rabbitmq:5672/
+      CALENDAR_DEPENDENCIES_NOTIFICATION_ADDRESS: notification-service:8081
     ports:
       - "${CALENDAR_GRPC_PORT:-8081}:8081"
       - "${CALENDAR_HTTP_PORT:-8082}:8082"

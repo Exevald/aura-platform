@@ -436,16 +436,18 @@ func (r *repo) DueReminderDeliveries(now time.Time, limit int) ([]domain.Reminde
 	`
 
 	var rows []struct {
-		ID, EventID, WorkspaceID uuid.UUID
-		UserID                   *uuid.UUID     `db:"user_id"`
-		RecipientEmail           string         `db:"recipient_email"`
-		Title                    string         `db:"title"`
-		Body                     string         `db:"body"`
-		RRule                    sql.NullString `db:"rrule"`
-		InApp                    bool           `db:"in_app"`
-		Email                    bool           `db:"email"`
-		OccurrenceStartsAt       time.Time      `db:"occurrence_starts_at"`
-		DeliverAt                time.Time      `db:"deliver_at"`
+		ID                 uuid.UUID      `db:"id"`
+		EventID            uuid.UUID      `db:"event_id"`
+		WorkspaceID        uuid.UUID      `db:"workspace_id"`
+		UserID             *uuid.UUID     `db:"user_id"`
+		RecipientEmail     string         `db:"recipient_email"`
+		Title              string         `db:"title"`
+		Body               string         `db:"body"`
+		RRule              sql.NullString `db:"rrule"`
+		InApp              bool           `db:"in_app"`
+		Email              bool           `db:"email"`
+		OccurrenceStartsAt time.Time      `db:"occurrence_starts_at"`
+		DeliverAt          time.Time      `db:"deliver_at"`
 	}
 	e := r.db.SelectContext(r.ctx, "reminder_delivery.due", &rows, sqlReminderDeliveryDueQuery, now, limit)
 	if e != nil {

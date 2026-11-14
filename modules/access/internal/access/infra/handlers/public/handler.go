@@ -5,11 +5,11 @@ import (
 	"errors"
 	"uuid"
 
-	openapi_types "github.com/oapi-codegen/runtime/types"
+	openapitypes "github.com/oapi-codegen/runtime/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	publicapi "access/api/server/publicapi"
+	"access/api/server/publicapi"
 	"access/internal/access/app"
 	"access/internal/access/domain/model"
 	clientinfra "access/internal/access/infra/client"
@@ -40,7 +40,12 @@ func (h *handler) ListModules(ctx context.Context, _ publicapi.ListModulesReques
 	}
 	out := make(publicapi.ListModules200JSONResponse, 0, len(modules))
 	for _, module := range modules {
-		out = append(out, publicapi.Module{Id: openapi_types.UUID(module.ID), Code: module.Code, Name: module.Name})
+		out = append(out,
+			publicapi.Module{
+				Id:   openapitypes.UUID(module.ID),
+				Code: module.Code,
+				Name: module.Name,
+			})
 	}
 	return out, nil
 }
@@ -62,7 +67,7 @@ func (h *handler) SetGroupModules(ctx context.Context, req publicapi.SetGroupMod
 	ownerID, groupID := uuid.UUID(req.Params.XAuthUser), uuid.UUID(req.GroupID)
 	members, err := h.groups.Members(ctx, groupID, ownerID)
 	if status.Code(err) == codes.NotFound {
-		return publicapi.SetGroupModules404JSONResponse{NotFoundJSONResponse: publicapi.NotFoundJSONResponse{Message: "group not found"}}, nil
+		return publicapi.SetGroupModules404JSONResponse{Message: "group not found"}, nil
 	}
 	if err != nil {
 		return publicapi.SetGroupModules503JSONResponse{UnavailableJSONResponse: unavailable()}, nil
@@ -74,7 +79,7 @@ func (h *handler) SetGroupModules(ctx context.Context, req publicapi.SetGroupMod
 	}
 	values, err := h.svc.SetGroupModules(ctx, ownerID, groupID, moduleIDs, members)
 	if errors.Is(err, model.ErrUnknownModule) {
-		return publicapi.SetGroupModules400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: err.Error()}}, nil
+		return publicapi.SetGroupModules400JSONResponse{Message: err.Error()}, nil
 	}
 	if errors.Is(err, model.ErrEmptyGroup) {
 		return publicapi.SetGroupModules409JSONResponse{Message: err.Error()}, nil
@@ -107,18 +112,26 @@ func moduleRecipients(ownerID uuid.UUID, members []uuid.UUID) []uuid.UUID {
 
 func groupAccesses(values []model.ModuleShare) map[uuid.UUID][]uuid.UUID {
 	result := make(map[uuid.UUID][]uuid.UUID)
+	seen := make(map[uuid.UUID]map[uuid.UUID]struct{})
 	for _, value := range values {
+		if seen[value.GroupID] == nil {
+			seen[value.GroupID] = make(map[uuid.UUID]struct{})
+		}
+		if _, exists := seen[value.GroupID][value.ModuleID]; exists {
+			continue
+		}
+		seen[value.GroupID][value.ModuleID] = struct{}{}
 		result[value.GroupID] = append(result[value.GroupID], value.ModuleID)
 	}
 	return result
 }
 
 func toAPI(groupID uuid.UUID, moduleIDs []uuid.UUID) publicapi.GroupModuleAccess {
-	ids := make([]openapi_types.UUID, 0, len(moduleIDs))
+	ids := make([]openapitypes.UUID, 0, len(moduleIDs))
 	for _, moduleID := range moduleIDs {
-		ids = append(ids, openapi_types.UUID(moduleID))
+		ids = append(ids, openapitypes.UUID(moduleID))
 	}
-	return publicapi.GroupModuleAccess{GroupID: openapi_types.UUID(groupID), ModuleIDs: ids}
+	return publicapi.GroupModuleAccess{GroupID: openapitypes.UUID(groupID), ModuleIDs: ids}
 }
 
 func unavailable() publicapi.UnavailableJSONResponse {
