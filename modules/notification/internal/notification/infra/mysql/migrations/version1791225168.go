@@ -22,8 +22,35 @@ func (*version1791225168) Description() string {
 }
 
 func (v *version1791225168) Up(ctx context.Context) error {
-	schema := `CREATE TABLE IF NOT EXISTS notification(id BINARY(16) NOT NULL PRIMARY KEY,user_id BINARY(16) NOT NULL,workspace_id BINARY(16) NULL,idempotency_key VARCHAR(191) NOT NULL,kind VARCHAR(80) NOT NULL,title VARCHAR(255) NOT NULL,body TEXT NOT NULL,is_read BOOLEAN NOT NULL DEFAULT FALSE,email_requested BOOLEAN NOT NULL DEFAULT FALSE,recipient_email VARCHAR(320) NULL,created_at DATETIME(6) NOT NULL,UNIQUE KEY notification_idempotency_uidx(user_id,idempotency_key),INDEX notification_user_created_idx(user_id,created_at));CREATE TABLE IF NOT EXISTS notification_preferences(user_id BINARY(16) NOT NULL PRIMARY KEY,in_app BOOLEAN NOT NULL,email BOOLEAN NOT NULL)`
-	for i, statement := range strings.Split(schema, ";") {
+	const (
+		createNotificationQuery = `
+			CREATE TABLE IF NOT EXISTS notification(
+			    id BINARY(16) NOT NULL PRIMARY KEY,
+			    user_id BINARY(16) NOT NULL,
+			    workspace_id BINARY(16) NULL,
+			    idempotency_key VARCHAR(191) NOT NULL,
+			    kind VARCHAR(80) NOT NULL,
+			    title VARCHAR(255) NOT NULL,
+			    body TEXT NOT NULL,
+			    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+			    email_requested BOOLEAN NOT NULL DEFAULT FALSE,
+			    recipient_email VARCHAR(320) NULL,
+			    created_at DATETIME(6) NOT NULL,
+			    UNIQUE KEY notification_idempotency_uidx(user_id, idempotency_key),
+			    INDEX notification_user_created_idx(user_id, created_at)
+			)
+		`
+		createNotificationPreferencesQuery = `
+			CREATE TABLE IF NOT EXISTS notification_preferences(
+			    user_id BINARY(16) NOT NULL PRIMARY KEY,
+			    in_app BOOLEAN NOT NULL,
+			    email BOOLEAN NOT NULL
+			)
+		`
+	)
+	statements := []string{createNotificationQuery, createNotificationPreferencesQuery}
+
+	for i, statement := range statements {
 		if strings.TrimSpace(statement) == "" {
 			continue
 		}

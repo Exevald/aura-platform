@@ -22,19 +22,21 @@ func (*documentMigration) Description() string {
 }
 
 func (m *documentMigration) Up(ctx context.Context) error {
-	_, err := m.client.ExecContext(ctx, "create-document-table", `
+	const sqlCreateDocumentTableQuery = `
 		CREATE TABLE IF NOT EXISTS document (
-		 id BINARY(16) NOT NULL PRIMARY KEY,
-		 owner_user_id BINARY(16) NOT NULL,
-			 workspace_id BINARY(16) NOT NULL,
-		 title VARCHAR(255) NOT NULL,
-		 content MEDIUMTEXT NOT NULL,
-		 version BIGINT NOT NULL,
-		 created_at DATETIME(6) NOT NULL,
-		 updated_at DATETIME(6) NOT NULL,
-		 INDEX document_owner_idx (owner_user_id),
-		 INDEX document_workspace_idx (workspace_id)
-		) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-	`)
+		    id BINARY(16) NOT NULL PRIMARY KEY,
+		    owner_user_id BINARY(16) NOT NULL,
+		    workspace_id BINARY(16) NOT NULL,
+		    title VARCHAR(255) NOT NULL,
+		    content MEDIUMTEXT NOT NULL,
+		    version BIGINT NOT NULL,
+		    created_at DATETIME(6) NOT NULL,
+		    updated_at DATETIME(6) NOT NULL,
+		    INDEX document_owner_idx (owner_user_id),
+		    INDEX document_workspace_idx (workspace_id)
+		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
+	`
+
+	_, err := m.client.ExecContext(ctx, "create-document-table", sqlCreateDocumentTableQuery)
 	return err
 }

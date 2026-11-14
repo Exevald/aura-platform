@@ -41,15 +41,34 @@ func (s *registrationStorage) Save(transaction app.RegistrationTransaction) erro
 	if !transaction.LeaseUntil.IsZero() {
 		leaseUntil = transaction.LeaseUntil
 	}
-	const query = `INSERT INTO registration_transaction
-		(id, user_id, credential_id, login, state, auth_done, user_done, access_done,
-		 lease_until, last_error, created_at, updated_at)
+	const query = `
+		INSERT INTO registration_transaction (
+		    id,
+		    user_id,
+		    credential_id,
+		    login,
+		    state,
+		    auth_done,
+		    user_done,
+		    access_done,
+		    lease_until,
+		    last_error,
+		    created_at,
+		    updated_at
+		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
 		ON DUPLICATE KEY UPDATE
-			user_id = VALUES(user_id), credential_id = VALUES(credential_id), login = VALUES(login),
-			state = VALUES(state), auth_done = VALUES(auth_done), user_done = VALUES(user_done),
-			access_done = VALUES(access_done), lease_until = VALUES(lease_until),
-			last_error = VALUES(last_error), updated_at = UTC_TIMESTAMP(6)`
+		    user_id = VALUES (user_id),
+		    credential_id = VALUES (credential_id),
+		    login = VALUES (login),
+		    state = VALUES (state),
+		    auth_done = VALUES (auth_done),
+		    user_done = VALUES (user_done),
+		    access_done = VALUES (access_done),
+		    lease_until = VALUES (lease_until),
+		    last_error = VALUES (last_error),
+		    updated_at = UTC_TIMESTAMP(6)
+	`
 	_, err := s.client.ExecContext(
 		s.ctx,
 		"registration.save",
@@ -69,25 +88,49 @@ func (s *registrationStorage) Save(transaction app.RegistrationTransaction) erro
 }
 
 func (s *registrationStorage) FindForUpdate(id uuid.UUID) (app.RegistrationTransaction, error) {
-	var row registrationRow
-	err := s.client.GetContext(s.ctx, "registration.find-for-update", &row, `SELECT
-		id, user_id, credential_id, login, state, auth_done, user_done, access_done,
-		lease_until, COALESCE(last_error, '') AS last_error
+	const sqlRegistrationFindForUpdateQuery = `
+		SELECT
+		    id,
+		    user_id,
+		    credential_id,
+		    login,
+		    state,
+		    auth_done,
+		    user_done,
+		    access_done,
+		    lease_until,
+		    COALESCE(last_error, '') AS last_error
 		FROM registration_transaction
 		WHERE id = ?
-		FOR UPDATE`, newBinaryUUID(id))
+		FOR UPDATE
+	`
+
+	var row registrationRow
+	err := s.client.GetContext(s.ctx, "registration.find-for-update", &row, sqlRegistrationFindForUpdateQuery, newBinaryUUID(id))
 	return row.registration(), err
 }
 
 func (s *registrationStorage) FindPending(now time.Time, limit int) ([]app.RegistrationTransaction, error) {
-	var rows []registrationRow
-	err := s.client.SelectContext(s.ctx, "registration.pending", &rows, `SELECT
-		id, user_id, credential_id, login, state, auth_done, user_done, access_done,
-		lease_until, COALESCE(last_error, '') AS last_error
+	const sqlRegistrationPendingQuery = `
+		SELECT
+		    id,
+		    user_id,
+		    credential_id,
+		    login,
+		    state,
+		    auth_done,
+		    user_done,
+		    access_done,
+		    lease_until,
+		    COALESCE(last_error, '') AS last_error
 		FROM registration_transaction
-		WHERE state IN ('committing', 'aborting')
-			OR (state = 'preparing' AND lease_until < ?)
-		ORDER BY updated_at LIMIT ?`, now.UTC(), limit)
+		WHERE state IN ('committing', 'aborting') OR (state = 'preparing' AND lease_until < ?)
+		ORDER BY updated_at
+		LIMIT ?
+	`
+
+	var rows []registrationRow
+	err := s.client.SelectContext(s.ctx, "registration.pending", &rows, sqlRegistrationPendingQuery, now.UTC(), limit)
 	if err != nil {
 		return nil, err
 	}

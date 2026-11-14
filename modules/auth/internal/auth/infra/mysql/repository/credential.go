@@ -46,23 +46,23 @@ func (r *credentialRepository) NextID() (uuid.UUID, error) {
 func (r *credentialRepository) Store(credential domain.Credential) error {
 	const query = `
 		INSERT INTO credential (
-			id,
-			user_id,
-			login,
-			password_hash,
-			method,
-			created_at,
-			updated_at,
-			deleted_at
+		    id,
+		    user_id,
+		    login,
+		    password_hash,
+		    method,
+		    created_at,
+		    updated_at,
+		    deleted_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
 		ON DUPLICATE KEY UPDATE
-			user_id = VALUES(user_id),
-			login = VALUES(login),
-			password_hash = VALUES(password_hash),
-			method = VALUES(method),
-			updated_at = VALUES(updated_at),
-			deleted_at = NULL
+		    user_id = VALUES (user_id),
+		    login = VALUES (login),
+		    password_hash = VALUES (password_hash),
+		    method = VALUES (method),
+		    updated_at = VALUES (updated_at),
+		    deleted_at = NULL
 	`
 	_, err := r.client.ExecContext(
 		r.ctx,
@@ -85,7 +85,7 @@ func (r *credentialRepository) Store(credential domain.Credential) error {
 
 func (r *credentialRepository) Find(id uuid.UUID) (domain.Credential, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    id,
 		    user_id,
 		    login,
@@ -101,7 +101,7 @@ func (r *credentialRepository) Find(id uuid.UUID) (domain.Credential, error) {
 
 func (r *credentialRepository) FindByLogin(login string) (domain.Credential, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    id,
 		    user_id,
 		    login,
@@ -117,7 +117,7 @@ func (r *credentialRepository) FindByLogin(login string) (domain.Credential, err
 
 func (r *credentialRepository) FindByUserID(userID uuid.UUID) (domain.Credential, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    id,
 		    user_id,
 		    login,
@@ -132,7 +132,12 @@ func (r *credentialRepository) FindByUserID(userID uuid.UUID) (domain.Credential
 }
 
 func (r *credentialRepository) Delete(id uuid.UUID) error {
-	const query = `UPDATE credential SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL`
+	const query = `
+		UPDATE credential
+		SET
+		    deleted_at = NOW()
+		WHERE id = ? AND deleted_at IS NULL
+	`
 	_, err := r.client.ExecContext(r.ctx, "delete-credential", query, newBinaryUUID(id))
 	return errors.WithStack(err)
 }

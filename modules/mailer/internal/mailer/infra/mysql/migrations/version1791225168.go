@@ -20,6 +20,21 @@ func (*version1791225168) Description() string {
 }
 
 func (v *version1791225168) Up(ctx context.Context) error {
-	_, e := v.db.ExecContext(ctx, "mailer.schema", `CREATE TABLE IF NOT EXISTS mail_job(id BINARY(16) NOT NULL PRIMARY KEY,idempotency_key VARCHAR(191) NOT NULL UNIQUE,recipient VARCHAR(320) NOT NULL,subject VARCHAR(255) NOT NULL,body TEXT NOT NULL,status ENUM('pending','sent','failed') NOT NULL,attempts INT NOT NULL DEFAULT 0,last_error TEXT NULL,created_at DATETIME(6) NOT NULL,updated_at DATETIME(6) NOT NULL)`)
+	const sqlMailerSchemaQuery = `
+		CREATE TABLE IF NOT EXISTS mail_job(
+		    id BINARY(16) NOT NULL PRIMARY KEY,
+		    idempotency_key VARCHAR(191) NOT NULL UNIQUE,
+		    recipient VARCHAR(320) NOT NULL,
+		    subject VARCHAR(255) NOT NULL,
+		    body TEXT NOT NULL,
+		    status ENUM('pending', 'sent', 'failed') NOT NULL,
+		    attempts INT NOT NULL DEFAULT 0,
+		    last_error TEXT NULL,
+		    created_at DATETIME(6) NOT NULL,
+		    updated_at DATETIME(6) NOT NULL
+		)
+	`
+
+	_, e := v.db.ExecContext(ctx, "mailer.schema", sqlMailerSchemaQuery)
 	return e
 }

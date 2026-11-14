@@ -31,8 +31,21 @@ func NewModuleShareOperation(ctx context.Context, client mysql.ClientContext) mo
 }
 
 func (r *moduleShareOperationRepository) ListByGroup(group uuid.UUID) ([]model.ModuleShare, error) {
+	const sqlModuleShareOperationListGroupQuery = `
+		SELECT
+		    share_id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    created_at,
+		    updated_at
+		FROM module_share_operation
+		WHERE group_id = ? AND status = 'granted'
+	`
+
 	var rows []moduleShareOperationRow
-	if err := r.client.SelectContext(r.ctx, "module-share-operation.list-group", &rows, selectOperation+` WHERE group_id=? AND status='granted'`, newBinaryUUID(group)); err != nil {
+	if err := r.client.SelectContext(r.ctx, "module-share-operation.list-group", &rows, sqlModuleShareOperationListGroupQuery, newBinaryUUID(group)); err != nil {
 		return nil, err
 	}
 	result := make([]model.ModuleShare, 0, len(rows))
@@ -43,8 +56,21 @@ func (r *moduleShareOperationRepository) ListByGroup(group uuid.UUID) ([]model.M
 }
 
 func (r *moduleShareOperationRepository) ListByOwner(owner uuid.UUID) ([]model.ModuleShare, error) {
+	const sqlModuleShareOperationListOwnerQuery = `
+		SELECT
+		    share_id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    created_at,
+		    updated_at
+		FROM module_share_operation
+		WHERE owner_user_id = ? AND status = 'granted'
+	`
+
 	var rows []moduleShareOperationRow
-	if err := r.client.SelectContext(r.ctx, "module-share-operation.list-owner", &rows, selectOperation+` WHERE owner_user_id=? AND status='granted'`, newBinaryUUID(owner)); err != nil {
+	if err := r.client.SelectContext(r.ctx, "module-share-operation.list-owner", &rows, sqlModuleShareOperationListOwnerQuery, newBinaryUUID(owner)); err != nil {
 		return nil, err
 	}
 	result := make([]model.ModuleShare, 0, len(rows))
@@ -55,8 +81,21 @@ func (r *moduleShareOperationRepository) ListByOwner(owner uuid.UUID) ([]model.M
 }
 
 func (r *moduleShareOperationRepository) Find(id uuid.UUID) (model.ModuleShare, error) {
+	const sqlModuleShareOperationFindQuery = `
+		SELECT
+		    share_id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    created_at,
+		    updated_at
+		FROM module_share_operation
+		WHERE share_id = ?
+	`
+
 	var row moduleShareOperationRow
-	err := r.client.GetContext(r.ctx, "module-share-operation.find", &row, selectOperation+` WHERE share_id=?`, newBinaryUUID(id))
+	err := r.client.GetContext(r.ctx, "module-share-operation.find", &row, sqlModuleShareOperationFindQuery, newBinaryUUID(id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.ModuleShare{}, model.ErrModuleShareOperationNotFound
 	}
@@ -64,11 +103,25 @@ func (r *moduleShareOperationRepository) Find(id uuid.UUID) (model.ModuleShare, 
 }
 
 func (r *moduleShareOperationRepository) Store(op model.ModuleShare) error {
-	_, err := r.client.ExecContext(r.ctx, "module-share-operation.store", `INSERT INTO module_share_operation(share_id,module_id,group_id,owner_user_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE status=VALUES(status),updated_at=VALUES(updated_at)`, newBinaryUUID(op.ShareID), newBinaryUUID(op.ModuleID), newBinaryUUID(op.GroupID), newBinaryUUID(op.OwnerUserID), op.Status, op.CreatedAt, op.UpdatedAt)
+	const sqlModuleShareOperationStoreQuery = `
+		INSERT INTO module_share_operation(
+		    share_id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		    status = VALUES (status),
+		    updated_at = VALUES (updated_at)
+	`
+
+	_, err := r.client.ExecContext(r.ctx, "module-share-operation.store", sqlModuleShareOperationStoreQuery, newBinaryUUID(op.ShareID), newBinaryUUID(op.ModuleID), newBinaryUUID(op.GroupID), newBinaryUUID(op.OwnerUserID), op.Status, op.CreatedAt, op.UpdatedAt)
 	return err
 }
-
-const selectOperation = `SELECT share_id,module_id,group_id,owner_user_id,status,created_at,updated_at FROM module_share_operation`
 
 func (r moduleShareOperationRow) domain() model.ModuleShare {
 	return model.ModuleShare{ShareID: r.ShareID.UUID(), ModuleID: r.ModuleID.UUID(), GroupID: r.GroupID.UUID(), OwnerUserID: r.OwnerUserID.UUID(), Status: r.Status, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}

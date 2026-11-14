@@ -31,13 +31,43 @@ type row struct {
 }
 
 func (r *repo) Store(v domain.File) error {
-	_, e := r.db.ExecContext(r.ctx, "file.store", `INSERT INTO stored_file(id,workspace_id,owner_user_id,object_key,file_name,content_type,size_bytes,checksum_sha256,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, v.ID, v.WorkspaceID, v.OwnerUserID, v.ObjectKey, v.FileName, v.ContentType, v.SizeBytes, v.ChecksumSHA256, v.CreatedAt)
+	const sqlFileStoreQuery = `
+		INSERT INTO stored_file(
+		    id,
+		    workspace_id,
+		    owner_user_id,
+		    object_key,
+		    file_name,
+		    content_type,
+		    size_bytes,
+		    checksum_sha256,
+		    created_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	_, e := r.db.ExecContext(r.ctx, "file.store", sqlFileStoreQuery, v.ID, v.WorkspaceID, v.OwnerUserID, v.ObjectKey, v.FileName, v.ContentType, v.SizeBytes, v.ChecksumSHA256, v.CreatedAt)
 	return e
 }
 
 func (r *repo) Find(id uuid.UUID) (domain.File, error) {
+	const sqlFileFindQuery = `
+		SELECT
+		    id,
+		    workspace_id,
+		    owner_user_id,
+		    object_key,
+		    file_name,
+		    content_type,
+		    size_bytes,
+		    checksum_sha256,
+		    created_at
+		FROM stored_file
+		WHERE id = ?
+	`
+
 	var v row
-	e := r.db.GetContext(r.ctx, "file.find", &v, `SELECT id,workspace_id,owner_user_id,object_key,file_name,content_type,size_bytes,checksum_sha256,created_at FROM stored_file WHERE id=?`, id)
+	e := r.db.GetContext(r.ctx, "file.find", &v, sqlFileFindQuery, id)
 	if errors.Is(e, sql.ErrNoRows) {
 		e = domain.ErrNotFound
 	}
@@ -45,8 +75,24 @@ func (r *repo) Find(id uuid.UUID) (domain.File, error) {
 }
 
 func (r *repo) List(w uuid.UUID) ([]domain.File, error) {
+	const sqlFileListQuery = `
+		SELECT
+		    id,
+		    workspace_id,
+		    owner_user_id,
+		    object_key,
+		    file_name,
+		    content_type,
+		    size_bytes,
+		    checksum_sha256,
+		    created_at
+		FROM stored_file
+		WHERE workspace_id = ?
+		ORDER BY created_at DESC
+	`
+
 	var rows []row
-	e := r.db.SelectContext(r.ctx, "file.list", &rows, `SELECT id,workspace_id,owner_user_id,object_key,file_name,content_type,size_bytes,checksum_sha256,created_at FROM stored_file WHERE workspace_id=? ORDER BY created_at DESC`, w)
+	e := r.db.SelectContext(r.ctx, "file.list", &rows, sqlFileListQuery, w)
 	out := make([]domain.File, 0, len(rows))
 	for _, v := range rows {
 		out = append(out, v.domain())
@@ -59,7 +105,12 @@ func (v row) domain() domain.File {
 }
 
 func (r *repo) Delete(id uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "file.delete", `DELETE FROM stored_file WHERE id=?`, id)
+	const sqlFileDeleteQuery = `
+		DELETE FROM stored_file
+		WHERE id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "file.delete", sqlFileDeleteQuery, id)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound

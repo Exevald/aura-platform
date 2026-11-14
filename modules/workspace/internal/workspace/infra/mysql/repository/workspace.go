@@ -36,13 +36,38 @@ type memberRow struct {
 }
 
 func (r *repo) Store(v domain.Workspace) error {
-	_, e := r.db.ExecContext(r.ctx, "workspace.store", `INSERT INTO workspace(id,kind,name,created_at,updated_at) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE name=VALUES(name),updated_at=VALUES(updated_at)`, v.ID, v.Kind, v.Name, v.CreatedAt, v.UpdatedAt)
+	const sqlWorkspaceStoreQuery = `
+		INSERT INTO workspace(
+		    id,
+		    kind,
+		    name,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		    name = VALUES (name),
+		    updated_at = VALUES (updated_at)
+	`
+
+	_, e := r.db.ExecContext(r.ctx, "workspace.store", sqlWorkspaceStoreQuery, v.ID, v.Kind, v.Name, v.CreatedAt, v.UpdatedAt)
 	return e
 }
 
 func (r *repo) Find(id uuid.UUID) (domain.Workspace, error) {
+	const sqlWorkspaceFindQuery = `
+		SELECT
+		    id,
+		    kind,
+		    name,
+		    created_at,
+		    updated_at
+		FROM workspace
+		WHERE id = ?
+	`
+
 	var v workspaceRow
-	e := r.db.GetContext(r.ctx, "workspace.find", &v, `SELECT id,kind,name,created_at,updated_at FROM workspace WHERE id=?`, id)
+	e := r.db.GetContext(r.ctx, "workspace.find", &v, sqlWorkspaceFindQuery, id)
 	if errors.Is(e, sql.ErrNoRows) {
 		e = domain.ErrNotFound
 	}
@@ -50,8 +75,20 @@ func (r *repo) Find(id uuid.UUID) (domain.Workspace, error) {
 }
 
 func (r *repo) ListByUser(user uuid.UUID) ([]domain.Workspace, error) {
+	const sqlWorkspaceListQuery = `
+		SELECT
+		    w.id,
+		    w.kind,
+		    w.name,
+		    w.created_at,
+		    w.updated_at
+		FROM workspace w JOIN workspace_member m ON m.workspace_id = w.id
+		WHERE m.user_id = ?
+		ORDER BY w.kind, w.name
+	`
+
 	var rows []workspaceRow
-	e := r.db.SelectContext(r.ctx, "workspace.list", &rows, `SELECT w.id,w.kind,w.name,w.created_at,w.updated_at FROM workspace w JOIN workspace_member m ON m.workspace_id=w.id WHERE m.user_id=? ORDER BY w.kind,w.name`, user)
+	e := r.db.SelectContext(r.ctx, "workspace.list", &rows, sqlWorkspaceListQuery, user)
 	out := make([]domain.Workspace, 0, len(rows))
 	for _, v := range rows {
 		out = append(out, domain.Workspace(v))
@@ -60,7 +97,12 @@ func (r *repo) ListByUser(user uuid.UUID) ([]domain.Workspace, error) {
 }
 
 func (r *repo) Delete(id uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "workspace.delete", `DELETE FROM workspace WHERE id=?`, id)
+	const sqlWorkspaceDeleteQuery = `
+		DELETE FROM workspace
+		WHERE id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "workspace.delete", sqlWorkspaceDeleteQuery, id)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound
@@ -70,12 +112,29 @@ func (r *repo) Delete(id uuid.UUID) error {
 }
 
 func (r *repo) StoreMember(v domain.Member) error {
-	_, e := r.db.ExecContext(r.ctx, "workspace.member.store", `INSERT INTO workspace_member(workspace_id,user_id,role,created_at) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE role=VALUES(role)`, v.WorkspaceID, v.UserID, v.Role, v.CreatedAt)
+	const sqlWorkspaceMemberStoreQuery = `
+		INSERT INTO workspace_member(
+		    workspace_id,
+		    user_id,
+		    role,
+		    created_at
+		)
+		VALUES (?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		    role = VALUES (role)
+	`
+
+	_, e := r.db.ExecContext(r.ctx, "workspace.member.store", sqlWorkspaceMemberStoreQuery, v.WorkspaceID, v.UserID, v.Role, v.CreatedAt)
 	return e
 }
 
 func (r *repo) DeleteMember(w, u uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "workspace.member.delete", `DELETE FROM workspace_member WHERE workspace_id=? AND user_id=?`, w, u)
+	const sqlWorkspaceMemberDeleteQuery = `
+		DELETE FROM workspace_member
+		WHERE workspace_id = ? AND user_id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "workspace.member.delete", sqlWorkspaceMemberDeleteQuery, w, u)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound
@@ -85,8 +144,18 @@ func (r *repo) DeleteMember(w, u uuid.UUID) error {
 }
 
 func (r *repo) FindMember(w, u uuid.UUID) (domain.Member, error) {
+	const sqlWorkspaceMemberFindQuery = `
+		SELECT
+		    workspace_id,
+		    user_id,
+		    role,
+		    created_at
+		FROM workspace_member
+		WHERE workspace_id = ? AND user_id = ?
+	`
+
 	var v memberRow
-	e := r.db.GetContext(r.ctx, "workspace.member.find", &v, `SELECT workspace_id,user_id,role,created_at FROM workspace_member WHERE workspace_id=? AND user_id=?`, w, u)
+	e := r.db.GetContext(r.ctx, "workspace.member.find", &v, sqlWorkspaceMemberFindQuery, w, u)
 	if errors.Is(e, sql.ErrNoRows) {
 		e = domain.ErrNotFound
 	}
@@ -94,8 +163,19 @@ func (r *repo) FindMember(w, u uuid.UUID) (domain.Member, error) {
 }
 
 func (r *repo) ListMembers(w uuid.UUID) ([]domain.Member, error) {
+	const sqlWorkspaceMemberListQuery = `
+		SELECT
+		    workspace_id,
+		    user_id,
+		    role,
+		    created_at
+		FROM workspace_member
+		WHERE workspace_id = ?
+		ORDER BY created_at
+	`
+
 	var rows []memberRow
-	e := r.db.SelectContext(r.ctx, "workspace.member.list", &rows, `SELECT workspace_id,user_id,role,created_at FROM workspace_member WHERE workspace_id=? ORDER BY created_at`, w)
+	e := r.db.SelectContext(r.ctx, "workspace.member.list", &rows, sqlWorkspaceMemberListQuery, w)
 	out := make([]domain.Member, 0, len(rows))
 	for _, v := range rows {
 		out = append(out, domain.Member(v))
@@ -104,11 +184,25 @@ func (r *repo) ListMembers(w uuid.UUID) ([]domain.Member, error) {
 }
 
 func (r *repo) StoreInvitation(v domain.Invitation) error {
+	const sqlWorkspaceInvitationStoreQuery = `
+		INSERT INTO workspace_invitation(
+		    id,
+		    workspace_id,
+		    user_id,
+		    email,
+		    role,
+		    token,
+		    expires_at,
+		    created_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
 	var user any
 	if v.UserID != uuid.Nil() {
 		user = v.UserID
 	}
-	_, e := r.db.ExecContext(r.ctx, "workspace.invitation.store", `INSERT INTO workspace_invitation(id,workspace_id,user_id,email,role,token,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?)`, v.ID, v.WorkspaceID, user, v.Email, v.Role, v.Token, v.ExpiresAt, v.CreatedAt)
+	_, e := r.db.ExecContext(r.ctx, "workspace.invitation.store", sqlWorkspaceInvitationStoreQuery, v.ID, v.WorkspaceID, user, v.Email, v.Role, v.Token, v.ExpiresAt, v.CreatedAt)
 	return e
 }
 
@@ -132,8 +226,22 @@ func invitationFromRow(v invitationRow) domain.Invitation {
 }
 
 func (r *repo) FindInvitationByToken(token string) (domain.Invitation, error) {
+	const sqlWorkspaceInvitationFindQuery = `
+		SELECT
+		    id,
+		    workspace_id,
+		    user_id,
+		    email,
+		    role,
+		    token,
+		    expires_at,
+		    created_at
+		FROM workspace_invitation
+		WHERE token = ?
+	`
+
 	var v invitationRow
-	e := r.db.GetContext(r.ctx, "workspace.invitation.find", &v, `SELECT id,workspace_id,user_id,email,role,token,expires_at,created_at FROM workspace_invitation WHERE token=?`, token)
+	e := r.db.GetContext(r.ctx, "workspace.invitation.find", &v, sqlWorkspaceInvitationFindQuery, token)
 	if errors.Is(e, sql.ErrNoRows) {
 		e = domain.ErrNotFound
 	}
@@ -141,8 +249,23 @@ func (r *repo) FindInvitationByToken(token string) (domain.Invitation, error) {
 }
 
 func (r *repo) ListInvitations(workspace uuid.UUID) ([]domain.Invitation, error) {
+	const sqlWorkspaceInvitationListQuery = `
+		SELECT
+		    id,
+		    workspace_id,
+		    user_id,
+		    email,
+		    role,
+		    token,
+		    expires_at,
+		    created_at
+		FROM workspace_invitation
+		WHERE workspace_id = ?
+		ORDER BY created_at DESC
+	`
+
 	var rows []invitationRow
-	e := r.db.SelectContext(r.ctx, "workspace.invitation.list", &rows, `SELECT id,workspace_id,user_id,email,role,token,expires_at,created_at FROM workspace_invitation WHERE workspace_id=? ORDER BY created_at DESC`, workspace)
+	e := r.db.SelectContext(r.ctx, "workspace.invitation.list", &rows, sqlWorkspaceInvitationListQuery, workspace)
 	out := make([]domain.Invitation, 0, len(rows))
 	for _, v := range rows {
 		out = append(out, invitationFromRow(v))
@@ -151,7 +274,12 @@ func (r *repo) ListInvitations(workspace uuid.UUID) ([]domain.Invitation, error)
 }
 
 func (r *repo) DeleteInvitation(workspace, id uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "workspace.invitation.delete", `DELETE FROM workspace_invitation WHERE id=? AND workspace_id=?`, id, workspace)
+	const sqlWorkspaceInvitationDeleteQuery = `
+		DELETE FROM workspace_invitation
+		WHERE id = ? AND workspace_id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "workspace.invitation.delete", sqlWorkspaceInvitationDeleteQuery, id, workspace)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound

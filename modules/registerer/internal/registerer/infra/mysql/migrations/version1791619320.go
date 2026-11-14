@@ -24,22 +24,24 @@ func (*version1791619320) Description() string {
 }
 
 func (m *version1791619320) Up(ctx context.Context) error {
-	_, err := m.client.ExecContext(ctx, "create-registration-transaction-table", `
+	const sqlCreateRegistrationTransactionTableQuery = `
 		CREATE TABLE IF NOT EXISTS registration_transaction (
-			id BINARY(16) NOT NULL PRIMARY KEY,
-			user_id BINARY(16) NOT NULL,
-			credential_id BINARY(16) NULL,
-			login VARCHAR(255) NOT NULL,
-			state VARCHAR(16) NOT NULL,
-			auth_done BOOLEAN NOT NULL DEFAULT FALSE,
-			user_done BOOLEAN NOT NULL DEFAULT FALSE,
-			access_done BOOLEAN NOT NULL DEFAULT FALSE,
-			lease_until DATETIME(6) NULL,
-			last_error TEXT NULL,
-			created_at DATETIME(6) NOT NULL,
-			updated_at DATETIME(6) NOT NULL,
-			INDEX registration_pending_idx(state, updated_at)
-		) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-	`)
+		    id BINARY(16) NOT NULL PRIMARY KEY,
+		    user_id BINARY(16) NOT NULL,
+		    credential_id BINARY(16) NULL,
+		    login VARCHAR(255) NOT NULL,
+		    state VARCHAR(16) NOT NULL,
+		    auth_done BOOLEAN NOT NULL DEFAULT FALSE,
+		    user_done BOOLEAN NOT NULL DEFAULT FALSE,
+		    access_done BOOLEAN NOT NULL DEFAULT FALSE,
+		    lease_until DATETIME(6) NULL,
+		    last_error TEXT NULL,
+		    created_at DATETIME(6) NOT NULL,
+		    updated_at DATETIME(6) NOT NULL,
+		    INDEX registration_pending_idx(state, updated_at)
+		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
+	`
+
+	_, err := m.client.ExecContext(ctx, "create-registration-transaction-table", sqlCreateRegistrationTransactionTableQuery)
 	return err
 }

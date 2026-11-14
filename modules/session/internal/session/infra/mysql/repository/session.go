@@ -44,13 +44,21 @@ func (r *sessionRepository) NextID() (uuid.UUID, error) {
 
 func (r *sessionRepository) Store(v domain.Session) error {
 	const query = `
-		INSERT INTO session (id, user_id, status, created_at, expires_at, revoked_at, persistent)
+		INSERT INTO session (
+		    id,
+		    user_id,
+		    status,
+		    created_at,
+		    expires_at,
+		    revoked_at,
+		    persistent
+		)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
-			status = VALUES(status),
-			expires_at = VALUES(expires_at),
-			revoked_at = VALUES(revoked_at),
-			persistent = VALUES(persistent)
+		    status = VALUES (status),
+		    expires_at = VALUES (expires_at),
+		    revoked_at = VALUES (revoked_at),
+		    persistent = VALUES (persistent)
 	`
 	_, err := r.client.ExecContext(
 		r.ctx,
@@ -70,13 +78,13 @@ func (r *sessionRepository) Store(v domain.Session) error {
 func (r *sessionRepository) Find(id uuid.UUID) (domain.Session, error) {
 	const query = `
 		SELECT
-			id,
-			user_id,
-			status,
-			created_at,
-			expires_at,
-			revoked_at
-			,persistent
+		    id,
+		    user_id,
+		    status,
+		    created_at,
+		    expires_at,
+		    revoked_at,
+		    persistent
 		FROM session
 		WHERE id = ?
 	`
@@ -101,13 +109,13 @@ func (r *sessionRepository) Find(id uuid.UUID) (domain.Session, error) {
 func (r *sessionRepository) FindActiveByUser(userID uuid.UUID) ([]domain.Session, error) {
 	const query = `
 		SELECT
-			id,
-			user_id,
-			status,
-			created_at,
-			expires_at,
-			revoked_at
-			,persistent
+		    id,
+		    user_id,
+		    status,
+		    created_at,
+		    expires_at,
+		    revoked_at,
+		    persistent
 		FROM session
 		WHERE user_id = ? AND status = 'active'
 	`

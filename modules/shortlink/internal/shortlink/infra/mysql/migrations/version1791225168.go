@@ -22,16 +22,18 @@ func (*version1791225168) Description() string {
 }
 
 func (v *version1791225168) Up(ctx context.Context) error {
-	_, err := v.client.ExecContext(ctx, "create-short-link", `
+	const sqlCreateShortLinkQuery = `
 		CREATE TABLE IF NOT EXISTS short_link (
-			id CHAR(36) NOT NULL PRIMARY KEY,
-			owner_user_id CHAR(36) NOT NULL,
-			code CHAR(10) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-			target_url VARCHAR(2048) NOT NULL,
-			created_at DATETIME(6) NOT NULL,
-			UNIQUE KEY short_link_code_uidx(code),
-			INDEX short_link_owner_created_idx(owner_user_id, created_at)
-		) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-	`)
+		    id CHAR(36) NOT NULL PRIMARY KEY,
+		    owner_user_id CHAR(36) NOT NULL,
+		    code CHAR(10) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+		    target_url VARCHAR(2048) NOT NULL,
+		    created_at DATETIME(6) NOT NULL,
+		    UNIQUE KEY short_link_code_uidx(code),
+		    INDEX short_link_owner_created_idx(owner_user_id, created_at)
+		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
+	`
+
+	_, err := v.client.ExecContext(ctx, "create-short-link", sqlCreateShortLinkQuery)
 	return err
 }

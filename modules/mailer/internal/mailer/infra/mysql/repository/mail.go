@@ -38,7 +38,23 @@ type row struct {
 }
 
 func (r *repo) Create(v domain.Job) (domain.Job, bool, error) {
-	res, e := r.db.ExecContext(r.ctx, "mail.create", `INSERT IGNORE INTO mail_job(id,idempotency_key,recipient,subject,body,status,attempts,last_error,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, v.ID, v.IdempotencyKey, v.Recipient, v.Subject, v.Body, v.Status, v.Attempts, nil, v.CreatedAt, v.UpdatedAt)
+	const sqlMailCreateQuery = `
+		INSERT IGNORE INTO mail_job(
+		    id,
+		    idempotency_key,
+		    recipient,
+		    subject,
+		    body,
+		    status,
+		    attempts,
+		    last_error,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "mail.create", sqlMailCreateQuery, v.ID, v.IdempotencyKey, v.Recipient, v.Subject, v.Body, v.Status, v.Attempts, nil, v.CreatedAt, v.UpdatedAt)
 	if e != nil {
 		return domain.Job{}, false, e
 	}
@@ -54,11 +70,43 @@ func (r *repo) Create(v domain.Job) (domain.Job, bool, error) {
 }
 
 func (r *repo) Find(id uuid.UUID) (domain.Job, error) {
-	return r.find(`SELECT id,idempotency_key,recipient,subject,body,status,attempts,last_error,created_at,updated_at FROM mail_job WHERE id=?`, id)
+	const sqlFindQuery = `
+		SELECT
+		    id,
+		    idempotency_key,
+		    recipient,
+		    subject,
+		    body,
+		    status,
+		    attempts,
+		    last_error,
+		    created_at,
+		    updated_at
+		FROM mail_job
+		WHERE id = ?
+	`
+
+	return r.find(sqlFindQuery, id)
 }
 
 func (r *repo) FindByKey(k string) (domain.Job, error) {
-	return r.find(`SELECT id,idempotency_key,recipient,subject,body,status,attempts,last_error,created_at,updated_at FROM mail_job WHERE idempotency_key=?`, k)
+	const sqlFindByKeyQuery = `
+		SELECT
+		    id,
+		    idempotency_key,
+		    recipient,
+		    subject,
+		    body,
+		    status,
+		    attempts,
+		    last_error,
+		    created_at,
+		    updated_at
+		FROM mail_job
+		WHERE idempotency_key = ?
+	`
+
+	return r.find(sqlFindByKeyQuery, k)
 }
 
 func (r *repo) find(q string, arg any) (domain.Job, error) {
@@ -71,7 +119,17 @@ func (r *repo) find(q string, arg any) (domain.Job, error) {
 }
 
 func (r *repo) StoreResult(v domain.Job) error {
-	_, e := r.db.ExecContext(r.ctx, "mail.result", `UPDATE mail_job SET status=?,attempts=?,last_error=?,updated_at=? WHERE id=?`, v.Status, v.Attempts, nullString(v.LastError), v.UpdatedAt, v.ID)
+	const sqlMailResultQuery = `
+		UPDATE mail_job
+		SET
+		    status = ?,
+		    attempts = ?,
+		    last_error = ?,
+		    updated_at = ?
+		WHERE id = ?
+	`
+
+	_, e := r.db.ExecContext(r.ctx, "mail.result", sqlMailResultQuery, v.Status, v.Attempts, nullString(v.LastError), v.UpdatedAt, v.ID)
 	return e
 }
 

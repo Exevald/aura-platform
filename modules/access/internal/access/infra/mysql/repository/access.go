@@ -44,15 +44,22 @@ func (r *moduleAccessRepository) NextID() (uuid.UUID, error) {
 
 func (r *moduleAccessRepository) Store(access model.ModuleAccess) error {
 	const query = `
-		INSERT INTO module_access
-			(id, user_id, module_id, effect, source_id, created_at, updated_at)
+		INSERT INTO module_access (
+		    id,
+		    user_id,
+		    module_id,
+		    effect,
+		    source_id,
+		    created_at,
+		    updated_at
+		)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
-			user_id = VALUES(user_id),
-			module_id = VALUES(module_id),
-			effect = VALUES(effect),
-			source_id = VALUES(source_id),
-			updated_at = VALUES(updated_at)
+		    user_id = VALUES (user_id),
+		    module_id = VALUES (module_id),
+		    effect = VALUES (effect),
+		    source_id = VALUES (source_id),
+		    updated_at = VALUES (updated_at)
 	`
 	_, err := r.client.ExecContext(
 		r.ctx,
@@ -71,7 +78,14 @@ func (r *moduleAccessRepository) Store(access model.ModuleAccess) error {
 
 func (r *moduleAccessRepository) Find(id uuid.UUID) (model.ModuleAccess, error) {
 	const query = `
-		SELECT id, user_id, module_id, effect, source_id, created_at, updated_at
+		SELECT
+		    id,
+		    user_id,
+		    module_id,
+		    effect,
+		    source_id,
+		    created_at,
+		    updated_at
 		FROM module_access
 		WHERE id = ?
 	`
@@ -88,7 +102,14 @@ func (r *moduleAccessRepository) Find(id uuid.UUID) (model.ModuleAccess, error) 
 
 func (r *moduleAccessRepository) FindByUserAndModule(userID, moduleID uuid.UUID) ([]model.ModuleAccess, error) {
 	const query = `
-		SELECT id, user_id, module_id, effect, source_id, created_at, updated_at
+		SELECT
+		    id,
+		    user_id,
+		    module_id,
+		    effect,
+		    source_id,
+		    created_at,
+		    updated_at
 		FROM module_access
 		WHERE user_id = ? AND module_id = ?
 	`
@@ -112,19 +133,28 @@ func (r *moduleAccessRepository) FindByUserAndModule(userID, moduleID uuid.UUID)
 }
 
 func (r *moduleAccessRepository) Delete(id uuid.UUID) error {
-	const query = `DELETE FROM module_access WHERE id = ?`
+	const query = `
+		DELETE FROM module_access
+		WHERE id = ?
+	`
 	_, err := r.client.ExecContext(r.ctx, "delete-module-access", query, newBinaryUUID(id))
 	return errors.WithStack(err)
 }
 
 func (r *moduleAccessRepository) DeleteBySource(sourceID string) error {
-	const query = `DELETE FROM module_access WHERE source_id=?`
+	const query = `
+		DELETE FROM module_access
+		WHERE source_id = ?
+	`
 	_, err := r.client.ExecContext(r.ctx, "delete-module-access-by-source", query, sourceID)
 	return errors.WithStack(err)
 }
 
 func (r *moduleAccessRepository) DeleteBySourceAndUser(sourceID string, userID uuid.UUID) error {
-	const query = `DELETE FROM module_access WHERE source_id=? AND user_id=?`
+	const query = `
+		DELETE FROM module_access
+		WHERE source_id = ? AND user_id = ?
+	`
 	_, err := r.client.ExecContext(
 		r.ctx,
 		"delete-module-access-by-source-user",

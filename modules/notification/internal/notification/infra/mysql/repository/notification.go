@@ -25,6 +25,23 @@ func (r *repo) NextID() (uuid.UUID, error) {
 }
 
 func (r *repo) Store(v domain.Notification) (bool, error) {
+	const sqlNotificationStoreQuery = `
+		INSERT IGNORE INTO notification(
+		    id,
+		    user_id,
+		    workspace_id,
+		    idempotency_key,
+		    kind,
+		    title,
+		    body,
+		    is_read,
+		    email_requested,
+		    recipient_email,
+		    created_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
 	var wid any
 	if v.WorkspaceID != uuid.Nil() {
 		wid = v.WorkspaceID
@@ -33,7 +50,7 @@ func (r *repo) Store(v domain.Notification) (bool, error) {
 	if v.RecipientEmail != "" {
 		recipient = v.RecipientEmail
 	}
-	res, e := r.db.ExecContext(r.ctx, "notification.store", `INSERT IGNORE INTO notification(id,user_id,workspace_id,idempotency_key,kind,title,body,is_read,email_requested,recipient_email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, v.ID, v.UserID, wid, v.IdempotencyKey, v.Kind, v.Title, v.Body, v.Read, v.EmailRequested, recipient, v.CreatedAt)
+	res, e := r.db.ExecContext(r.ctx, "notification.store", sqlNotificationStoreQuery, v.ID, v.UserID, wid, v.IdempotencyKey, v.Kind, v.Title, v.Body, v.Read, v.EmailRequested, recipient, v.CreatedAt)
 	if e != nil {
 		return false, e
 	}
@@ -42,8 +59,27 @@ func (r *repo) Store(v domain.Notification) (bool, error) {
 }
 
 func (r *repo) List(user uuid.UUID) ([]domain.Notification, error) {
+	const sqlNotificationListQuery = `
+		SELECT
+		    id,
+		    user_id,
+		    workspace_id,
+		    idempotency_key,
+		    kind,
+		    title,
+		    body,
+		    is_read,
+		    email_requested,
+		    recipient_email,
+		    created_at
+		FROM notification
+		WHERE user_id = ?
+		ORDER BY created_at DESC
+		LIMIT 200
+	`
+
 	var rows []row
-	e := r.db.SelectContext(r.ctx, "notification.list", &rows, `SELECT id,user_id,workspace_id,idempotency_key,kind,title,body,is_read,email_requested,recipient_email,created_at FROM notification WHERE user_id=? ORDER BY created_at DESC LIMIT 200`, user)
+	e := r.db.SelectContext(r.ctx, "notification.list", &rows, sqlNotificationListQuery, user)
 	out := make([]domain.Notification, 0, len(rows))
 	for _, v := range rows {
 		n := domain.Notification{ID: v.ID, UserID: v.UserID, IdempotencyKey: v.IdempotencyKey, Kind: v.Kind, Title: v.Title, Body: v.Body, Read: v.Read, EmailRequested: v.EmailRequested, RecipientEmail: v.RecipientEmail.String, CreatedAt: v.CreatedAt}
@@ -56,7 +92,14 @@ func (r *repo) List(user uuid.UUID) ([]domain.Notification, error) {
 }
 
 func (r *repo) MarkRead(user, id uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "notification.read", `UPDATE notification SET is_read=TRUE WHERE id=? AND user_id=?`, id, user)
+	const sqlNotificationReadQuery = `
+		UPDATE notification
+		SET
+		    is_read = TRUE
+		WHERE id = ? AND user_id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "notification.read", sqlNotificationReadQuery, id, user)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound
@@ -66,12 +109,21 @@ func (r *repo) MarkRead(user, id uuid.UUID) error {
 }
 
 func (r *repo) GetPreferences(user uuid.UUID) (domain.Preferences, error) {
+	const sqlNotificationPreferencesGetQuery = `
+		SELECT
+		    user_id,
+		    in_app,
+		    email
+		FROM notification_preferences
+		WHERE user_id = ?
+	`
+
 	var v struct {
 		UserID uuid.UUID `db:"user_id"`
 		InApp  bool      `db:"in_app"`
 		Email  bool      `db:"email"`
 	}
-	e := r.db.GetContext(r.ctx, "notification.preferences.get", &v, `SELECT user_id,in_app,email FROM notification_preferences WHERE user_id=?`, user)
+	e := r.db.GetContext(r.ctx, "notification.preferences.get", &v, sqlNotificationPreferencesGetQuery, user)
 	if errors.Is(e, sql.ErrNoRows) {
 		e = domain.ErrNotFound
 	}
@@ -79,7 +131,19 @@ func (r *repo) GetPreferences(user uuid.UUID) (domain.Preferences, error) {
 }
 
 func (r *repo) StorePreferences(v domain.Preferences) error {
-	_, e := r.db.ExecContext(r.ctx, "notification.preferences.store", `INSERT INTO notification_preferences(user_id,in_app,email) VALUES(?,?,?) ON DUPLICATE KEY UPDATE in_app=VALUES(in_app),email=VALUES(email)`, v.UserID, v.InApp, v.Email)
+	const sqlNotificationPreferencesStoreQuery = `
+		INSERT INTO notification_preferences(
+		    user_id,
+		    in_app,
+		    email
+		)
+		VALUES (?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		    in_app = VALUES (in_app),
+		    email = VALUES (email)
+	`
+
+	_, e := r.db.ExecContext(r.ctx, "notification.preferences.store", sqlNotificationPreferencesStoreQuery, v.UserID, v.InApp, v.Email)
 	return e
 }
 

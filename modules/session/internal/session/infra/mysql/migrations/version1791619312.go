@@ -26,17 +26,19 @@ func (v *version1791619312) Description() string {
 }
 
 func (v *version1791619312) Up(ctx context.Context) error {
-	_, err := v.client.ExecContext(ctx, "create-session-table", `
+	const sqlCreateSessionTableQuery = `
 		CREATE TABLE IF NOT EXISTS session (
-			id BINARY(16) NOT NULL PRIMARY KEY,
-			user_id BINARY(16) NOT NULL,
-			status VARCHAR(16) NOT NULL,
-			created_at DATETIME(6) NOT NULL,
-			expires_at DATETIME(6) NOT NULL,
-			revoked_at DATETIME(6) NULL,
+		    id BINARY(16) NOT NULL PRIMARY KEY,
+		    user_id BINARY(16) NOT NULL,
+		    status VARCHAR(16) NOT NULL,
+		    created_at DATETIME(6) NOT NULL,
+		    expires_at DATETIME(6) NOT NULL,
+		    revoked_at DATETIME(6) NULL,
 		    persistent BOOLEAN NOT NULL DEFAULT FALSE,
-			INDEX session_user_status_idx(user_id, status)
-		) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-	`)
+		    INDEX session_user_status_idx(user_id, status)
+		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
+	`
+
+	_, err := v.client.ExecContext(ctx, "create-session-table", sqlCreateSessionTableQuery)
 	return err
 }

@@ -28,17 +28,17 @@ func (*groupRepository) NextID() (uuid.UUID, error) {
 func (r *groupRepository) Store(group domain.Group) error {
 	const query = `
 		INSERT INTO user_group(
-				id,
-				owner_user_id,
-				workspace_id,
-				name,
-				created_at,
-				updated_at
-			)
-		VALUES(?,?,?,?,?,?)
+		    id,
+		    owner_user_id,
+		    workspace_id,
+		    name,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
-		    name=VALUES(name),
-			updated_at=VALUES(updated_at)
+		    name = VALUES (name),
+		    updated_at = VALUES (updated_at)
 	`
 	_, err := r.client.ExecContext(
 		r.ctx,
@@ -57,14 +57,14 @@ func (r *groupRepository) Store(group domain.Group) error {
 func (r *groupRepository) Find(id uuid.UUID) (domain.Group, error) {
 	const query = `
 		SELECT
-			id,
-			owner_user_id,
-			workspace_id,
-			name,
-			created_at,
-			updated_at
+		    id,
+		    owner_user_id,
+		    workspace_id,
+		    name,
+		    created_at,
+		    updated_at
 		FROM user_group
-		WHERE id=?
+		WHERE id = ?
 	`
 	var row groupRow
 	err := r.client.GetContext(r.ctx, "group.find", &row, query, id)
@@ -87,7 +87,8 @@ func (r *groupRepository) ListByOwner(owner, workspace uuid.UUID) ([]domain.Grou
 		    created_at,
 		    updated_at
 		FROM user_group
-		WHERE owner_user_id=? AND workspace_id=? ORDER BY name
+		WHERE owner_user_id = ? AND workspace_id = ?
+		ORDER BY name
 	`
 	var rows []groupRow
 	if err := r.client.SelectContext(r.ctx, "group.list", &rows, query, owner, workspace); err != nil {
@@ -101,7 +102,12 @@ func (r *groupRepository) ListByOwner(owner, workspace uuid.UUID) ([]domain.Grou
 }
 
 func (r *groupRepository) Delete(id uuid.UUID) error {
-	res, err := r.client.ExecContext(r.ctx, "group.delete", `DELETE FROM user_group WHERE id=?`, id)
+	const sqlGroupDeleteQuery = `
+		DELETE FROM user_group
+		WHERE id = ?
+	`
+
+	res, err := r.client.ExecContext(r.ctx, "group.delete", sqlGroupDeleteQuery, id)
 	if err != nil {
 		return err
 	}

@@ -36,7 +36,18 @@ func (r *linkRepository) NextID() (uuid.UUID, error) {
 }
 
 func (r *linkRepository) Store(link domain.Link) error {
-	_, err := r.db.ExecContext(r.ctx, "shortlink.store", `INSERT INTO short_link(id,owner_user_id,code,target_url,created_at) VALUES(?,?,?,?,?)`, link.ID.String(), link.OwnerID.String(), link.Code, link.TargetURL, link.CreatedAt)
+	const sqlShortlinkStoreQuery = `
+		INSERT INTO short_link(
+		    id,
+		    owner_user_id,
+		    code,
+		    target_url,
+		    created_at
+		)
+		VALUES (?, ?, ?, ?, ?)
+	`
+
+	_, err := r.db.ExecContext(r.ctx, "shortlink.store", sqlShortlinkStoreQuery, link.ID.String(), link.OwnerID.String(), link.Code, link.TargetURL, link.CreatedAt)
 	var mysqlErr *sqldriver.MySQLError
 	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 && strings.Contains(mysqlErr.Message, "code") {
 		return domain.ErrCodeConflict
@@ -45,8 +56,20 @@ func (r *linkRepository) Store(link domain.Link) error {
 }
 
 func (r *linkRepository) ListByOwner(ownerID uuid.UUID) ([]domain.Link, error) {
+	const sqlShortlinkListQuery = `
+		SELECT
+		    id,
+		    owner_user_id,
+		    code,
+		    target_url,
+		    created_at
+		FROM short_link
+		WHERE owner_user_id = ?
+		ORDER BY created_at DESC
+	`
+
 	var rows []linkRow
-	if err := r.db.SelectContext(r.ctx, "shortlink.list", &rows, `SELECT id,owner_user_id,code,target_url,created_at FROM short_link WHERE owner_user_id=? ORDER BY created_at DESC`, ownerID.String()); err != nil {
+	if err := r.db.SelectContext(r.ctx, "shortlink.list", &rows, sqlShortlinkListQuery, ownerID.String()); err != nil {
 		return nil, err
 	}
 	result := make([]domain.Link, 0, len(rows))
@@ -57,8 +80,19 @@ func (r *linkRepository) ListByOwner(ownerID uuid.UUID) ([]domain.Link, error) {
 }
 
 func (r *linkRepository) FindByCode(code string) (domain.Link, error) {
+	const sqlShortlinkFindCodeQuery = `
+		SELECT
+		    id,
+		    owner_user_id,
+		    code,
+		    target_url,
+		    created_at
+		FROM short_link
+		WHERE code = ?
+	`
+
 	var row linkRow
-	err := r.db.GetContext(r.ctx, "shortlink.find-code", &row, `SELECT id,owner_user_id,code,target_url,created_at FROM short_link WHERE code=?`, code)
+	err := r.db.GetContext(r.ctx, "shortlink.find-code", &row, sqlShortlinkFindCodeQuery, code)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Link{}, domain.ErrNotFound
 	}
@@ -66,7 +100,12 @@ func (r *linkRepository) FindByCode(code string) (domain.Link, error) {
 }
 
 func (r *linkRepository) Delete(ownerID, id uuid.UUID) error {
-	result, err := r.db.ExecContext(r.ctx, "shortlink.delete", `DELETE FROM short_link WHERE id=? AND owner_user_id=?`, id.String(), ownerID.String())
+	const sqlShortlinkDeleteQuery = `
+		DELETE FROM short_link
+		WHERE id = ? AND owner_user_id = ?
+	`
+
+	result, err := r.db.ExecContext(r.ctx, "shortlink.delete", sqlShortlinkDeleteQuery, id.String(), ownerID.String())
 	if err != nil {
 		return err
 	}

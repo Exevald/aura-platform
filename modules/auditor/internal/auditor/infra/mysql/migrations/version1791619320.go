@@ -26,21 +26,23 @@ func (v *version1791619320) Description() string {
 }
 
 func (v *version1791619320) Up(ctx context.Context) error {
-	_, err := v.client.ExecContext(ctx, "create-audit-record-table", `
+	const sqlCreateAuditRecordTableQuery = `
 		CREATE TABLE IF NOT EXISTS audit_record (
-			id BINARY(16) NOT NULL PRIMARY KEY,
-			event_id VARCHAR(255) NOT NULL,
-			event_type VARCHAR(255) NOT NULL,
-			producer VARCHAR(255) NOT NULL,
-			correlation_id VARCHAR(255) NOT NULL,
-			actor_id VARCHAR(255) NOT NULL,
-			resource_type VARCHAR(255) NOT NULL,
-			resource_id VARCHAR(255) NOT NULL,
-			payload LONGBLOB NOT NULL,
-			occurred_at DATETIME(6) NOT NULL,
-			received_at DATETIME(6) NOT NULL,
-			UNIQUE KEY audit_record_event_uidx(event_id)
-		) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-	`)
+		    id BINARY(16) NOT NULL PRIMARY KEY,
+		    event_id VARCHAR(255) NOT NULL,
+		    event_type VARCHAR(255) NOT NULL,
+		    producer VARCHAR(255) NOT NULL,
+		    correlation_id VARCHAR(255) NOT NULL,
+		    actor_id VARCHAR(255) NOT NULL,
+		    resource_type VARCHAR(255) NOT NULL,
+		    resource_id VARCHAR(255) NOT NULL,
+		    payload LONGBLOB NOT NULL,
+		    occurred_at DATETIME(6) NOT NULL,
+		    received_at DATETIME(6) NOT NULL,
+		    UNIQUE KEY audit_record_event_uidx(event_id)
+		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
+	`
+
+	_, err := v.client.ExecContext(ctx, "create-audit-record-table", sqlCreateAuditRecordTableQuery)
 	return err
 }

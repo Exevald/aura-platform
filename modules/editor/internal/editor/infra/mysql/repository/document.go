@@ -42,15 +42,16 @@ func (*documentRepository) NextID() (uuid.UUID, error) {
 func (r *documentRepository) Create(d model.Document) error {
 	const query = `
 		INSERT INTO document(
-			 id,
-			 owner_user_id,
-			 workspace_id,
-			 title,
-			 content,
-			 version,
-			 created_at,
-			 updated_at) 
-		VALUES (?,?,?,?,?,?,?,?)
+		    id,
+		    owner_user_id,
+		    workspace_id,
+		    title,
+		    content,
+		    version,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := r.client.ExecContext(
 		r.ctx,
@@ -70,7 +71,7 @@ func (r *documentRepository) Create(d model.Document) error {
 
 func (r *documentRepository) Find(id uuid.UUID) (model.Document, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    id,
 		    owner_user_id,
 		    workspace_id,
@@ -79,8 +80,8 @@ func (r *documentRepository) Find(id uuid.UUID) (model.Document, error) {
 		    version,
 		    created_at,
 		    updated_at
-		FROM document 
-		WHERE id=?
+		FROM document
+		WHERE id = ?
 	`
 	var row documentRow
 	err := r.client.GetContext(r.ctx, "document.find", &row, query, id)
@@ -92,7 +93,7 @@ func (r *documentRepository) Find(id uuid.UUID) (model.Document, error) {
 
 func (r *documentRepository) ListForUser(userID, workspaceID uuid.UUID) ([]model.Document, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    d.id,
 		    d.owner_user_id,
 		    d.workspace_id,
@@ -101,15 +102,9 @@ func (r *documentRepository) ListForUser(userID, workspaceID uuid.UUID) ([]model
 		    d.version,
 		    d.created_at,
 		    d.updated_at,
-			CASE 
-				WHEN d.owner_user_id=? 
-				THEN 'owner' 
-				ELSE p.role 
-			END role 
-		FROM document d 
-		LEFT JOIN document_permission p 
-		    ON p.document_id=d.id AND p.user_id=? 
-		WHERE d.workspace_id=? AND (d.owner_user_id=? OR p.user_id=?)
+		    CASE WHEN d.owner_user_id = ? THEN 'owner' ELSE p.role END role
+		FROM document d LEFT JOIN document_permission p ON p.document_id = d.id AND p.user_id = ?
+		WHERE d.workspace_id = ? AND (d.owner_user_id = ? OR p.user_id = ?)
 		ORDER BY d.updated_at DESC
 	`
 	var rows []documentRow
@@ -136,9 +131,13 @@ func (r *documentRepository) ListForUser(userID, workspaceID uuid.UUID) ([]model
 
 func (r *documentRepository) Update(d model.Document, expected int64) error {
 	const query = `
-		UPDATE document 
-		SET title=?,content=?,version=?,updated_at=? 
-		WHERE id=? AND version=?
+		UPDATE document
+		SET
+		    title = ?,
+		    content = ?,
+		    version = ?,
+		    updated_at = ?
+		WHERE id = ? AND version = ?
 	`
 	res, err := r.client.ExecContext(
 		r.ctx,
@@ -165,7 +164,10 @@ func (r *documentRepository) Update(d model.Document, expected int64) error {
 }
 
 func (r *documentRepository) Delete(id uuid.UUID) error {
-	const query = `DELETE FROM document WHERE id=?`
+	const query = `
+		DELETE FROM document
+		WHERE id = ?
+	`
 	res, err := r.client.ExecContext(r.ctx, "document.delete", query, id)
 	if err != nil {
 		return err
@@ -178,7 +180,12 @@ func (r *documentRepository) Delete(id uuid.UUID) error {
 }
 
 func (r *documentRepository) FindRole(documentID, userID uuid.UUID) (model.Role, error) {
-	const query = `SELECT role FROM document_permission WHERE document_id=? AND user_id=?`
+	const query = `
+		SELECT
+		    role
+		FROM document_permission
+		WHERE document_id = ? AND user_id = ?
+	`
 	var role string
 	err := r.client.GetContext(r.ctx, "permission.find", &role, query, documentID, userID)
 	if stderrors.Is(err, sql.ErrNoRows) {
@@ -189,14 +196,14 @@ func (r *documentRepository) FindRole(documentID, userID uuid.UUID) (model.Role,
 
 func (r *documentRepository) ListPermissions(documentID uuid.UUID) ([]model.Permission, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    document_id,
 		    user_id,
 		    role,
 		    created_at,
-		    updated_at 
-		FROM document_permission 
-		WHERE document_id=? 
+		    updated_at
+		FROM document_permission
+		WHERE document_id = ?
 		ORDER BY created_at
 	`
 	var rows []struct {
@@ -227,12 +234,17 @@ func (r *documentRepository) ListPermissions(documentID uuid.UUID) ([]model.Perm
 
 func (r *documentRepository) StorePermission(p model.Permission) error {
 	const query = `
-		INSERT INTO document_permission
-		    (document_id,user_id,role,created_at,updated_at) 
-		VALUES(?,?,?,?,?) 
-		ON DUPLICATE KEY UPDATE 
-		    role=VALUES(role),
-		 	updated_at=VALUES(updated_at)
+		INSERT INTO document_permission (
+		    document_id,
+		    user_id,
+		    role,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		    role = VALUES (role),
+		    updated_at = VALUES (updated_at)
 	`
 	_, err := r.client.ExecContext(
 		r.ctx,
@@ -248,7 +260,10 @@ func (r *documentRepository) StorePermission(p model.Permission) error {
 }
 
 func (r *documentRepository) DeletePermission(documentID, userID uuid.UUID) error {
-	const query = `DELETE FROM document_permission WHERE document_id=? AND user_id=?`
+	const query = `
+		DELETE FROM document_permission
+		WHERE document_id = ? AND user_id = ?
+	`
 	_, err := r.client.ExecContext(
 		r.ctx,
 		"permission.delete",

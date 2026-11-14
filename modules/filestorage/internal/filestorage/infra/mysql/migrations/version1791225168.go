@@ -20,6 +20,20 @@ func (*version1791225168) Description() string {
 }
 
 func (v *version1791225168) Up(ctx context.Context) error {
-	_, e := v.db.ExecContext(ctx, "filestorage.schema", `CREATE TABLE IF NOT EXISTS stored_file(id BINARY(16) NOT NULL PRIMARY KEY,workspace_id BINARY(16) NOT NULL,owner_user_id BINARY(16) NOT NULL,object_key VARCHAR(512) NOT NULL UNIQUE,file_name VARCHAR(255) NOT NULL,content_type VARCHAR(255) NOT NULL,size_bytes BIGINT NOT NULL,checksum_sha256 CHAR(64) NOT NULL,created_at DATETIME(6) NOT NULL)`)
+	const sqlFilestorageSchemaQuery = `
+		CREATE TABLE IF NOT EXISTS stored_file(
+		    id BINARY(16) NOT NULL PRIMARY KEY,
+		    workspace_id BINARY(16) NOT NULL,
+		    owner_user_id BINARY(16) NOT NULL,
+		    object_key VARCHAR(512) NOT NULL UNIQUE,
+		    file_name VARCHAR(255) NOT NULL,
+		    content_type VARCHAR(255) NOT NULL,
+		    size_bytes BIGINT NOT NULL,
+		    checksum_sha256 CHAR(64) NOT NULL,
+		    created_at DATETIME(6) NOT NULL
+		)
+	`
+
+	_, e := v.db.ExecContext(ctx, "filestorage.schema", sqlFilestorageSchemaQuery)
 	return e
 }

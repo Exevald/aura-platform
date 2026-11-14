@@ -26,19 +26,21 @@ func (v *version1791619310) Description() string {
 }
 
 func (v *version1791619310) Up(ctx context.Context) error {
-	_, err := v.client.ExecContext(ctx, "create-credential-table", `
+	const sqlCreateCredentialTableQuery = `
 		CREATE TABLE IF NOT EXISTS credential (
-			id BINARY(16) NOT NULL PRIMARY KEY,
-			user_id BINARY(16) NOT NULL,
-			login VARCHAR(255) NOT NULL,
-			password_hash VARCHAR(255) NOT NULL,
-			method VARCHAR(32) NOT NULL,
-			created_at DATETIME(6) NOT NULL,
-			updated_at DATETIME(6) NOT NULL,
-			deleted_at DATETIME(6) NULL,
-			UNIQUE KEY credential_login_uidx(login),
-			INDEX credential_user_idx(user_id)
-		) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-	`)
+		    id BINARY(16) NOT NULL PRIMARY KEY,
+		    user_id BINARY(16) NOT NULL,
+		    login VARCHAR(255) NOT NULL,
+		    password_hash VARCHAR(255) NOT NULL,
+		    method VARCHAR(32) NOT NULL,
+		    created_at DATETIME(6) NOT NULL,
+		    updated_at DATETIME(6) NOT NULL,
+		    deleted_at DATETIME(6) NULL,
+		    UNIQUE KEY credential_login_uidx(login),
+		    INDEX credential_user_idx(user_id)
+		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
+	`
+
+	_, err := v.client.ExecContext(ctx, "create-credential-table", sqlCreateCredentialTableQuery)
 	return err
 }

@@ -27,9 +27,12 @@ func NewGroupMembership(ctx context.Context, client mysql.ClientContext) domain.
 
 func (r *groupMembershipRepository) ListByGroup(groupID uuid.UUID) ([]domain.GroupMembership, error) {
 	const query = `
-		SELECT group_id, user_id, created_at
+		SELECT
+		    group_id,
+		    user_id,
+		    created_at
 		FROM user_group_member
-		WHERE group_id=?
+		WHERE group_id = ?
 		ORDER BY created_at
 	`
 	var rows []groupMembershipRow
@@ -45,8 +48,12 @@ func (r *groupMembershipRepository) ListByGroup(groupID uuid.UUID) ([]domain.Gro
 
 func (r *groupMembershipRepository) Store(membership domain.GroupMembership) (bool, error) {
 	const query = `
-		INSERT IGNORE INTO user_group_member(group_id, user_id, created_at)
-		VALUES(?, ?, ?)
+		INSERT IGNORE INTO user_group_member(
+		    group_id,
+		    user_id,
+		    created_at
+		)
+		VALUES (?, ?, ?)
 	`
 	result, err := r.client.ExecContext(
 		r.ctx,
@@ -64,7 +71,10 @@ func (r *groupMembershipRepository) Store(membership domain.GroupMembership) (bo
 }
 
 func (r *groupMembershipRepository) Delete(groupID, userID uuid.UUID) (bool, error) {
-	const query = `DELETE FROM user_group_member WHERE group_id=? AND user_id=?`
+	const query = `
+		DELETE FROM user_group_member
+		WHERE group_id = ? AND user_id = ?
+	`
 	result, err := r.client.ExecContext(
 		r.ctx,
 		"group-membership.delete",

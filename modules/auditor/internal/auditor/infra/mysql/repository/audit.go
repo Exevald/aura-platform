@@ -49,16 +49,16 @@ func (r *auditRepository) NextID() (uuid.UUID, error) {
 func (r *auditRepository) Store(record domain.AuditRecord) error {
 	const query = `
 		INSERT INTO audit_record (
-			id, 
-			event_id,
-		  	event_type,
-			producer,
-		    correlation_id, 
-		    actor_id, 
-		    resource_type, 
-		    resource_id, 
-		    payload, 
-		    occurred_at, 
+		    id,
+		    event_id,
+		    event_type,
+		    producer,
+		    correlation_id,
+		    actor_id,
+		    resource_type,
+		    resource_id,
+		    payload,
+		    occurred_at,
 		    received_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -84,7 +84,7 @@ func (r *auditRepository) Store(record domain.AuditRecord) error {
 
 func (r *auditRepository) Find(id uuid.UUID) (domain.AuditRecord, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    id,
 		    event_id,
 		    event_type,
@@ -104,7 +104,7 @@ func (r *auditRepository) Find(id uuid.UUID) (domain.AuditRecord, error) {
 
 func (r *auditRepository) FindByEventID(id string) (domain.AuditRecord, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    id,
 		    event_id,
 		    event_type,
@@ -113,7 +113,7 @@ func (r *auditRepository) FindByEventID(id string) (domain.AuditRecord, error) {
 		    actor_id,
 		    resource_type,
 		    resource_id,
-		    payload, 
+		    payload,
 		    occurred_at,
 		    received_at
 		FROM audit_record

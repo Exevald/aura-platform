@@ -41,13 +41,19 @@ func (u *userRepository) NextID() (uuid.UUID, error) {
 
 func (u *userRepository) Store(user domain.User) error {
 	const query = `
-		INSERT INTO user (id, display_name, first_name, last_name, email)
+		INSERT INTO user (
+		    id,
+		    display_name,
+		    first_name,
+		    last_name,
+		    email
+		)
 		VALUES (?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
-			display_name = VALUES(display_name),
-			first_name = VALUES(first_name),
-			last_name = VALUES(last_name),
-			email = VALUES(email)
+		    display_name = VALUES (display_name),
+		    first_name = VALUES (first_name),
+		    last_name = VALUES (last_name),
+		    email = VALUES (email)
 	`
 	_, err := u.client.ExecContext(
 		u.ctx,
@@ -64,13 +70,13 @@ func (u *userRepository) Store(user domain.User) error {
 
 func (u *userRepository) Find(id uuid.UUID) (domain.User, error) {
 	const query = `
-		SELECT 
+		SELECT
 		    id,
 		    display_name,
 		    first_name,
 		    last_name,
 		    email
-		FROM user 
+		FROM user
 		WHERE id = ? AND deleted_at IS NULL
 	`
 	var user sqlxUser
@@ -93,7 +99,12 @@ func (u *userRepository) Find(id uuid.UUID) (domain.User, error) {
 
 func (u *userRepository) FindByEmail(email string) (domain.User, error) {
 	const query = `
-		SELECT id, display_name, first_name, last_name, email
+		SELECT
+		    id,
+		    display_name,
+		    first_name,
+		    last_name,
+		    email
 		FROM user
 		WHERE email = ? AND deleted_at IS NULL
 	`
@@ -109,7 +120,12 @@ func (u *userRepository) FindByEmail(email string) (domain.User, error) {
 }
 
 func (u *userRepository) Delete(id uuid.UUID) error {
-	const query = `UPDATE user SET deleted_at = NOW() WHERE id = ? AND deleted_at is NULL`
+	const query = `
+		UPDATE user
+		SET
+		    deleted_at = NOW()
+		WHERE id = ? AND deleted_at is NULL
+	`
 	_, err := u.client.ExecContext(u.ctx, "remove-user", query, (id))
 	return errors.WithStack(err)
 }

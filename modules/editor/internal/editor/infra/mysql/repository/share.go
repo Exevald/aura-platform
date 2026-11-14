@@ -37,13 +37,48 @@ func (*shareRepository) NextID() (uuid.UUID, error) {
 }
 
 func (r *shareRepository) Store(v model.ModuleShare) error {
-	_, err := r.client.ExecContext(r.ctx, "module-share.store", `INSERT INTO module_share(id,module_id,group_id,owner_user_id,status,attempt,failure_reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE status=VALUES(status),attempt=VALUES(attempt),failure_reason=VALUES(failure_reason),updated_at=VALUES(updated_at)`, v.ID, v.ModuleID, v.GroupID, v.OwnerUserID, v.Status, v.Attempt, nullable(v.FailureReason), v.CreatedAt, v.UpdatedAt)
+	const sqlModuleShareStoreQuery = `
+		INSERT INTO module_share(
+		    id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    attempt,
+		    failure_reason,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		    status = VALUES (status),
+		    attempt = VALUES (attempt),
+		    failure_reason = VALUES (failure_reason),
+		    updated_at = VALUES (updated_at)
+	`
+
+	_, err := r.client.ExecContext(r.ctx, "module-share.store", sqlModuleShareStoreQuery, v.ID, v.ModuleID, v.GroupID, v.OwnerUserID, v.Status, v.Attempt, nullable(v.FailureReason), v.CreatedAt, v.UpdatedAt)
 	return err
 }
 
 func (r *shareRepository) Find(id uuid.UUID) (model.ModuleShare, error) {
+	const sqlModuleShareFindQuery = `
+		SELECT
+		    id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    attempt,
+		    failure_reason,
+		    created_at,
+		    updated_at
+		FROM module_share
+		WHERE id = ?
+	`
+
 	var row shareRow
-	err := r.client.GetContext(r.ctx, "module-share.find", &row, selectShare+` WHERE id=?`, id)
+	err := r.client.GetContext(r.ctx, "module-share.find", &row, sqlModuleShareFindQuery, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.ModuleShare{}, model.ErrShareNotFound
 	}
@@ -51,8 +86,25 @@ func (r *shareRepository) Find(id uuid.UUID) (model.ModuleShare, error) {
 }
 
 func (r *shareRepository) FindByOwnerGroup(ownerID, groupID uuid.UUID) (model.ModuleShare, error) {
+	const sqlModuleShareFindOwnerGroupQuery = `
+		SELECT
+		    id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    attempt,
+		    failure_reason,
+		    created_at,
+		    updated_at
+		FROM module_share
+		WHERE owner_user_id = ? AND group_id = ?
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
 	var row shareRow
-	err := r.client.GetContext(r.ctx, "module-share.find-owner-group", &row, selectShare+` WHERE owner_user_id=? AND group_id=? ORDER BY created_at DESC LIMIT 1`, ownerID, groupID)
+	err := r.client.GetContext(r.ctx, "module-share.find-owner-group", &row, sqlModuleShareFindOwnerGroupQuery, ownerID, groupID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.ModuleShare{}, model.ErrShareNotFound
 	}
@@ -60,30 +112,76 @@ func (r *shareRepository) FindByOwnerGroup(ownerID, groupID uuid.UUID) (model.Mo
 }
 
 func (r *shareRepository) ListByOwner(ownerID uuid.UUID) ([]model.ModuleShare, error) {
+	const sqlModuleShareListQuery = `
+		SELECT
+		    id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    attempt,
+		    failure_reason,
+		    created_at,
+		    updated_at
+		FROM module_share
+		WHERE owner_user_id = ?
+		ORDER BY created_at DESC
+	`
+
 	var rows []shareRow
-	if err := r.client.SelectContext(r.ctx, "module-share.list", &rows, selectShare+` WHERE owner_user_id=? ORDER BY created_at DESC`, ownerID); err != nil {
+	if err := r.client.SelectContext(r.ctx, "module-share.list", &rows, sqlModuleShareListQuery, ownerID); err != nil {
 		return nil, err
 	}
 	return convertShares(rows), nil
 }
 
 func (r *shareRepository) ListPendingBefore(deadline time.Time) ([]model.ModuleShare, error) {
+	const sqlModuleSharePendingQuery = `
+		SELECT
+		    id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    attempt,
+		    failure_reason,
+		    created_at,
+		    updated_at
+		FROM module_share
+		WHERE status = 'pending' AND updated_at <= ?
+		FOR UPDATE SKIP LOCKED
+	`
+
 	var rows []shareRow
-	if err := r.client.SelectContext(r.ctx, "module-share.pending", &rows, selectShare+` WHERE status='pending' AND updated_at<=? FOR UPDATE SKIP LOCKED`, deadline); err != nil {
+	if err := r.client.SelectContext(r.ctx, "module-share.pending", &rows, sqlModuleSharePendingQuery, deadline); err != nil {
 		return nil, err
 	}
 	return convertShares(rows), nil
 }
 
 func (r *shareRepository) ListCompensatingBefore(deadline time.Time) ([]model.ModuleShare, error) {
+	const sqlModuleShareCompensatingQuery = `
+		SELECT
+		    id,
+		    module_id,
+		    group_id,
+		    owner_user_id,
+		    status,
+		    attempt,
+		    failure_reason,
+		    created_at,
+		    updated_at
+		FROM module_share
+		WHERE status = 'compensating' AND updated_at <= ?
+		FOR UPDATE SKIP LOCKED
+	`
+
 	var rows []shareRow
-	if err := r.client.SelectContext(r.ctx, "module-share.compensating", &rows, selectShare+` WHERE status='compensating' AND updated_at<=? FOR UPDATE SKIP LOCKED`, deadline); err != nil {
+	if err := r.client.SelectContext(r.ctx, "module-share.compensating", &rows, sqlModuleShareCompensatingQuery, deadline); err != nil {
 		return nil, err
 	}
 	return convertShares(rows), nil
 }
-
-const selectShare = `SELECT id,module_id,group_id,owner_user_id,status,attempt,failure_reason,created_at,updated_at FROM module_share`
 
 func nullable(value string) any {
 	if value == "" {

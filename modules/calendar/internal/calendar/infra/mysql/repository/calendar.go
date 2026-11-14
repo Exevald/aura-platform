@@ -43,13 +43,43 @@ type eventRow struct {
 }
 
 func (r *repo) StoreCalendar(v domain.Calendar) error {
-	_, e := r.db.ExecContext(r.ctx, "calendar.store", `INSERT INTO calendar(id,workspace_id,owner_user_id,name,timezone,created_at,updated_at) VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE name=VALUES(name),timezone=VALUES(timezone),updated_at=VALUES(updated_at)`, v.ID, v.WorkspaceID, v.OwnerUserID, v.Name, v.Timezone, v.CreatedAt, v.UpdatedAt)
+	const sqlCalendarStoreQuery = `
+		INSERT INTO calendar(
+		    id,
+		    workspace_id,
+		    owner_user_id,
+		    name,
+		    timezone,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		    name = VALUES (name),
+		    timezone = VALUES (timezone),
+		    updated_at = VALUES (updated_at)
+	`
+
+	_, e := r.db.ExecContext(r.ctx, "calendar.store", sqlCalendarStoreQuery, v.ID, v.WorkspaceID, v.OwnerUserID, v.Name, v.Timezone, v.CreatedAt, v.UpdatedAt)
 	return e
 }
 
 func (r *repo) FindCalendar(id uuid.UUID) (domain.Calendar, error) {
+	const sqlCalendarFindQuery = `
+		SELECT
+		    id,
+		    workspace_id,
+		    owner_user_id,
+		    name,
+		    timezone,
+		    created_at,
+		    updated_at
+		FROM calendar
+		WHERE id = ?
+	`
+
 	var v calendarRow
-	e := r.db.GetContext(r.ctx, "calendar.find", &v, `SELECT id,workspace_id,owner_user_id,name,timezone,created_at,updated_at FROM calendar WHERE id=?`, id)
+	e := r.db.GetContext(r.ctx, "calendar.find", &v, sqlCalendarFindQuery, id)
 	if errors.Is(e, sql.ErrNoRows) {
 		e = domain.ErrNotFound
 	}
@@ -57,8 +87,22 @@ func (r *repo) FindCalendar(id uuid.UUID) (domain.Calendar, error) {
 }
 
 func (r *repo) ListCalendars(w uuid.UUID) ([]domain.Calendar, error) {
+	const sqlCalendarListQuery = `
+		SELECT
+		    id,
+		    workspace_id,
+		    owner_user_id,
+		    name,
+		    timezone,
+		    created_at,
+		    updated_at
+		FROM calendar
+		WHERE workspace_id = ?
+		ORDER BY name
+	`
+
 	var rows []calendarRow
-	e := r.db.SelectContext(r.ctx, "calendar.list", &rows, `SELECT id,workspace_id,owner_user_id,name,timezone,created_at,updated_at FROM calendar WHERE workspace_id=? ORDER BY name`, w)
+	e := r.db.SelectContext(r.ctx, "calendar.list", &rows, sqlCalendarListQuery, w)
 	out := make([]domain.Calendar, 0, len(rows))
 	for _, v := range rows {
 		out = append(out, domain.Calendar(v))
@@ -67,7 +111,12 @@ func (r *repo) ListCalendars(w uuid.UUID) ([]domain.Calendar, error) {
 }
 
 func (r *repo) DeleteCalendar(w, id uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "calendar.delete", `DELETE FROM calendar WHERE id=? AND workspace_id=?`, id, w)
+	const sqlCalendarDeleteQuery = `
+		DELETE FROM calendar
+		WHERE id = ? AND workspace_id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "calendar.delete", sqlCalendarDeleteQuery, id, w)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound
@@ -77,11 +126,69 @@ func (r *repo) DeleteCalendar(w, id uuid.UUID) error {
 }
 
 func (r *repo) StoreEvent(v domain.Event, expected int64) (domain.Event, error) {
+	const (
+		sqlEventInsertQuery = `
+			INSERT INTO calendar_event(
+			    id,
+			    calendar_id,
+			    title,
+			    description,
+			    starts_at,
+			    ends_at,
+			    timezone,
+			    rrule,
+			    version,
+			    created_at,
+			    updated_at
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`
+		sqlEventUpdateQuery = `
+			UPDATE calendar_event
+			SET
+			    title = ?,
+			    description = ?,
+			    starts_at = ?,
+			    ends_at = ?,
+			    timezone = ?,
+			    rrule = ?,
+			    version = version+1,
+			    updated_at = ?
+			WHERE id = ? AND version = ?
+		`
+		sqlAttendeeReplaceDeleteQuery = `
+			DELETE FROM calendar_event_attendee
+			WHERE event_id = ?
+		`
+		sqlAttendeeStoreQuery = `
+			INSERT INTO calendar_event_attendee(
+			    event_id,
+			    user_id,
+			    email,
+			    status
+			)
+			VALUES (?, ?, ?, ?)
+		`
+		sqlReminderReplaceDeleteQuery = `
+			DELETE FROM calendar_event_reminder
+			WHERE event_id = ?
+		`
+		sqlReminderStoreQuery = `
+			INSERT INTO calendar_event_reminder(
+			    event_id,
+			    minutes_before,
+			    in_app,
+			    email
+			)
+			VALUES (?, ?, ?, ?)
+		`
+	)
+
 	var e error
 	if expected == 0 {
-		_, e = r.db.ExecContext(r.ctx, "event.insert", `INSERT INTO calendar_event(id,calendar_id,title,description,starts_at,ends_at,timezone,rrule,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, v.ID, v.CalendarID, v.Title, v.Description, v.StartsAt, v.EndsAt, v.Timezone, nullString(v.RRule), v.Version, v.CreatedAt, v.UpdatedAt)
+		_, e = r.db.ExecContext(r.ctx, "event.insert", sqlEventInsertQuery, v.ID, v.CalendarID, v.Title, v.Description, v.StartsAt, v.EndsAt, v.Timezone, nullString(v.RRule), v.Version, v.CreatedAt, v.UpdatedAt)
 	} else {
-		res, err := r.db.ExecContext(r.ctx, "event.update", `UPDATE calendar_event SET title=?,description=?,starts_at=?,ends_at=?,timezone=?,rrule=?,version=version+1,updated_at=? WHERE id=? AND version=?`, v.Title, v.Description, v.StartsAt, v.EndsAt, v.Timezone, nullString(v.RRule), v.UpdatedAt, v.ID, expected)
+		res, err := r.db.ExecContext(r.ctx, "event.update", sqlEventUpdateQuery, v.Title, v.Description, v.StartsAt, v.EndsAt, v.Timezone, nullString(v.RRule), v.UpdatedAt, v.ID, expected)
 		e = err
 		if e == nil {
 			n, _ := res.RowsAffected()
@@ -94,7 +201,7 @@ func (r *repo) StoreEvent(v domain.Event, expected int64) (domain.Event, error) 
 	if e != nil {
 		return domain.Event{}, e
 	}
-	if _, e = r.db.ExecContext(r.ctx, "attendee.replace.delete", `DELETE FROM calendar_event_attendee WHERE event_id=?`, v.ID); e != nil {
+	if _, e = r.db.ExecContext(r.ctx, "attendee.replace.delete", sqlAttendeeReplaceDeleteQuery, v.ID); e != nil {
 		return domain.Event{}, e
 	}
 	for _, a := range v.Attendees {
@@ -102,15 +209,15 @@ func (r *repo) StoreEvent(v domain.Event, expected int64) (domain.Event, error) 
 		if a.UserID != uuid.Nil() {
 			uid = a.UserID
 		}
-		if _, e = r.db.ExecContext(r.ctx, "attendee.store", `INSERT INTO calendar_event_attendee(event_id,user_id,email,status) VALUES(?,?,?,?)`, v.ID, uid, a.Email, a.Status); e != nil {
+		if _, e = r.db.ExecContext(r.ctx, "attendee.store", sqlAttendeeStoreQuery, v.ID, uid, a.Email, a.Status); e != nil {
 			return domain.Event{}, e
 		}
 	}
-	if _, e = r.db.ExecContext(r.ctx, "reminder.replace.delete", `DELETE FROM calendar_event_reminder WHERE event_id=?`, v.ID); e != nil {
+	if _, e = r.db.ExecContext(r.ctx, "reminder.replace.delete", sqlReminderReplaceDeleteQuery, v.ID); e != nil {
 		return domain.Event{}, e
 	}
 	for _, m := range v.Reminders {
-		if _, e = r.db.ExecContext(r.ctx, "reminder.store", `INSERT INTO calendar_event_reminder(event_id,minutes_before,in_app,email) VALUES(?,?,?,?)`, v.ID, m.MinutesBefore, m.InApp, m.Email); e != nil {
+		if _, e = r.db.ExecContext(r.ctx, "reminder.store", sqlReminderStoreQuery, v.ID, m.MinutesBefore, m.InApp, m.Email); e != nil {
 			return domain.Event{}, e
 		}
 	}
@@ -118,8 +225,25 @@ func (r *repo) StoreEvent(v domain.Event, expected int64) (domain.Event, error) 
 }
 
 func (r *repo) FindEvent(id uuid.UUID) (domain.Event, error) {
+	const sqlEventFindQuery = `
+		SELECT
+		    id,
+		    calendar_id,
+		    title,
+		    description,
+		    starts_at,
+		    ends_at,
+		    timezone,
+		    rrule,
+		    version,
+		    created_at,
+		    updated_at
+		FROM calendar_event
+		WHERE id = ?
+	`
+
 	var v eventRow
-	e := r.db.GetContext(r.ctx, "event.find", &v, `SELECT id,calendar_id,title,description,starts_at,ends_at,timezone,rrule,version,created_at,updated_at FROM calendar_event WHERE id=?`, id)
+	e := r.db.GetContext(r.ctx, "event.find", &v, sqlEventFindQuery, id)
 	if errors.Is(e, sql.ErrNoRows) {
 		return domain.Event{}, domain.ErrNotFound
 	}
@@ -130,17 +254,89 @@ func (r *repo) FindEvent(id uuid.UUID) (domain.Event, error) {
 }
 
 func (r *repo) ListEvents(cal uuid.UUID, from, to time.Time) ([]domain.Event, error) {
-	query := `SELECT id,calendar_id,title,description,starts_at,ends_at,timezone,rrule,version,created_at,updated_at FROM calendar_event WHERE calendar_id=?`
+	const (
+		allQuery = `
+			SELECT
+			    id,
+			    calendar_id,
+			    title,
+			    description,
+			    starts_at,
+			    ends_at,
+			    timezone,
+			    rrule,
+			    version,
+			    created_at,
+			    updated_at
+			FROM calendar_event
+			WHERE calendar_id = ?
+			ORDER BY starts_at
+		`
+		fromQuery = `
+			SELECT
+			    id,
+			    calendar_id,
+			    title,
+			    description,
+			    starts_at,
+			    ends_at,
+			    timezone,
+			    rrule,
+			    version,
+			    created_at,
+			    updated_at
+			FROM calendar_event
+			WHERE calendar_id = ? AND ends_at >= ?
+			ORDER BY starts_at
+		`
+		toQuery = `
+			SELECT
+			    id,
+			    calendar_id,
+			    title,
+			    description,
+			    starts_at,
+			    ends_at,
+			    timezone,
+			    rrule,
+			    version,
+			    created_at,
+			    updated_at
+			FROM calendar_event
+			WHERE calendar_id = ? AND starts_at <= ?
+			ORDER BY starts_at
+		`
+		fromToQuery = `
+			SELECT
+			    id,
+			    calendar_id,
+			    title,
+			    description,
+			    starts_at,
+			    ends_at,
+			    timezone,
+			    rrule,
+			    version,
+			    created_at,
+			    updated_at
+			FROM calendar_event
+			WHERE calendar_id = ? AND ends_at >= ? AND starts_at <= ?
+			ORDER BY starts_at
+		`
+	)
+	query := allQuery
 	args := []any{cal}
-	if !from.IsZero() {
-		query += ` AND ends_at>=?`
+	switch {
+	case !from.IsZero() && !to.IsZero():
+		query = fromToQuery
+		args = append(args, from, to)
+	case !from.IsZero():
+		query = fromQuery
 		args = append(args, from)
-	}
-	if !to.IsZero() {
-		query += ` AND starts_at<=?`
+	case !to.IsZero():
+		query = toQuery
 		args = append(args, to)
 	}
-	query += ` ORDER BY starts_at`
 	var rows []eventRow
 	if e := r.db.SelectContext(r.ctx, "event.list", &rows, query, args...); e != nil {
 		return nil, e
@@ -157,7 +353,12 @@ func (r *repo) ListEvents(cal uuid.UUID, from, to time.Time) ([]domain.Event, er
 }
 
 func (r *repo) DeleteEvent(id uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "event.delete", `DELETE FROM calendar_event WHERE id=?`, id)
+	const sqlEventDeleteQuery = `
+		DELETE FROM calendar_event
+		WHERE id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "event.delete", sqlEventDeleteQuery, id)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound
@@ -167,7 +368,31 @@ func (r *repo) DeleteEvent(id uuid.UUID) error {
 }
 
 func (r *repo) ReplaceReminderDeliveries(workspace uuid.UUID, event domain.Event) error {
-	if _, e := r.db.ExecContext(r.ctx, "reminder_delivery.replace", `DELETE FROM calendar_reminder_delivery WHERE event_id=? AND delivered_at IS NULL`, event.ID); e != nil {
+	const (
+		sqlReminderDeliveryReplaceQuery = `
+			DELETE FROM calendar_reminder_delivery
+			WHERE event_id = ? AND delivered_at IS NULL
+		`
+		sqlReminderDeliveryStoreQuery = `
+			INSERT INTO calendar_reminder_delivery(
+			    id,
+			    event_id,
+			    workspace_id,
+			    user_id,
+			    recipient_email,
+			    title,
+			    body,
+			    rrule,
+			    in_app,
+			    email,
+			    occurrence_starts_at,
+			    deliver_at
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`
+	)
+
+	if _, e := r.db.ExecContext(r.ctx, "reminder_delivery.replace", sqlReminderDeliveryReplaceQuery, event.ID); e != nil {
 		return e
 	}
 	for _, attendee := range event.Attendees {
@@ -180,7 +405,7 @@ func (r *repo) ReplaceReminderDeliveries(workspace uuid.UUID, event domain.Event
 			if attendee.UserID != uuid.Nil() {
 				userID = attendee.UserID
 			}
-			_, e := r.db.ExecContext(r.ctx, "reminder_delivery.store", `INSERT INTO calendar_reminder_delivery(id,event_id,workspace_id,user_id,recipient_email,title,body,rrule,in_app,email,occurrence_starts_at,deliver_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, uuid.New(), event.ID, workspace, userID, attendee.Email, event.Title, event.Description, nullString(event.RRule), reminder.InApp, reminder.Email, event.StartsAt, deliverAt)
+			_, e := r.db.ExecContext(r.ctx, "reminder_delivery.store", sqlReminderDeliveryStoreQuery, uuid.New(), event.ID, workspace, userID, attendee.Email, event.Title, event.Description, nullString(event.RRule), reminder.InApp, reminder.Email, event.StartsAt, deliverAt)
 			if e != nil {
 				return e
 			}
@@ -190,6 +415,26 @@ func (r *repo) ReplaceReminderDeliveries(workspace uuid.UUID, event domain.Event
 }
 
 func (r *repo) DueReminderDeliveries(now time.Time, limit int) ([]domain.ReminderDelivery, error) {
+	const sqlReminderDeliveryDueQuery = `
+		SELECT
+		    id,
+		    event_id,
+		    workspace_id,
+		    user_id,
+		    recipient_email,
+		    title,
+		    body,
+		    rrule,
+		    in_app,
+		    email,
+		    occurrence_starts_at,
+		    deliver_at
+		FROM calendar_reminder_delivery
+		WHERE delivered_at IS NULL AND deliver_at <= ?
+		ORDER BY deliver_at
+		LIMIT ?
+	`
+
 	var rows []struct {
 		ID, EventID, WorkspaceID uuid.UUID
 		UserID                   *uuid.UUID     `db:"user_id"`
@@ -202,7 +447,7 @@ func (r *repo) DueReminderDeliveries(now time.Time, limit int) ([]domain.Reminde
 		OccurrenceStartsAt       time.Time      `db:"occurrence_starts_at"`
 		DeliverAt                time.Time      `db:"deliver_at"`
 	}
-	e := r.db.SelectContext(r.ctx, "reminder_delivery.due", &rows, `SELECT id,event_id,workspace_id,user_id,recipient_email,title,body,rrule,in_app,email,occurrence_starts_at,deliver_at FROM calendar_reminder_delivery WHERE delivered_at IS NULL AND deliver_at<=? ORDER BY deliver_at LIMIT ?`, now, limit)
+	e := r.db.SelectContext(r.ctx, "reminder_delivery.due", &rows, sqlReminderDeliveryDueQuery, now, limit)
 	if e != nil {
 		return nil, e
 	}
@@ -218,22 +463,59 @@ func (r *repo) DueReminderDeliveries(now time.Time, limit int) ([]domain.Reminde
 }
 
 func (r *repo) CompleteReminderDelivery(id uuid.UUID, next time.Time) error {
+	const (
+		sqlReminderDeliveryCompleteQuery = `
+			UPDATE calendar_reminder_delivery
+			SET
+			    delivered_at = UTC_TIMESTAMP(6)
+			WHERE id = ?
+		`
+		sqlReminderDeliveryRescheduleQuery = `
+			UPDATE calendar_reminder_delivery
+			SET
+			    occurrence_starts_at = DATE_ADD(occurrence_starts_at, INTERVAL TIMESTAMPDIFF(SECOND, deliver_at, ?) SECOND),
+			    deliver_at = ?
+			WHERE id = ?
+		`
+	)
+
 	if next.IsZero() {
-		_, e := r.db.ExecContext(r.ctx, "reminder_delivery.complete", `UPDATE calendar_reminder_delivery SET delivered_at=UTC_TIMESTAMP(6) WHERE id=?`, id)
+		_, e := r.db.ExecContext(r.ctx, "reminder_delivery.complete", sqlReminderDeliveryCompleteQuery, id)
 		return e
 	}
-	_, e := r.db.ExecContext(r.ctx, "reminder_delivery.reschedule", `UPDATE calendar_reminder_delivery SET occurrence_starts_at=DATE_ADD(occurrence_starts_at, INTERVAL TIMESTAMPDIFF(SECOND,deliver_at,?) SECOND),deliver_at=? WHERE id=?`, next, next, id)
+	_, e := r.db.ExecContext(r.ctx, "reminder_delivery.reschedule", sqlReminderDeliveryRescheduleQuery, next, next, id)
 	return e
 }
 
 func (r *repo) expand(v eventRow) (domain.Event, error) {
+	const (
+		sqlAttendeeListQuery = `
+			SELECT
+			    user_id,
+			    email,
+			    status
+			FROM calendar_event_attendee
+			WHERE event_id = ?
+			ORDER BY email
+		`
+		sqlReminderListQuery = `
+			SELECT
+			    minutes_before,
+			    in_app,
+			    email
+			FROM calendar_event_reminder
+			WHERE event_id = ?
+			ORDER BY minutes_before DESC
+		`
+	)
+
 	out := domain.Event{ID: v.ID, CalendarID: v.CalendarID, Title: v.Title, Description: v.Description, StartsAt: v.StartsAt, EndsAt: v.EndsAt, Timezone: v.Timezone, RRule: v.RRule.String, Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 	var aa []struct {
 		UserID *uuid.UUID `db:"user_id"`
 		Email  string     `db:"email"`
 		Status string     `db:"status"`
 	}
-	if e := r.db.SelectContext(r.ctx, "attendee.list", &aa, `SELECT user_id,email,status FROM calendar_event_attendee WHERE event_id=? ORDER BY email`, v.ID); e != nil {
+	if e := r.db.SelectContext(r.ctx, "attendee.list", &aa, sqlAttendeeListQuery, v.ID); e != nil {
 		return domain.Event{}, e
 	}
 	for _, a := range aa {
@@ -248,7 +530,7 @@ func (r *repo) expand(v eventRow) (domain.Event, error) {
 		InApp   bool `db:"in_app"`
 		Email   bool `db:"email"`
 	}
-	if e := r.db.SelectContext(r.ctx, "reminder.list", &rr, `SELECT minutes_before,in_app,email FROM calendar_event_reminder WHERE event_id=? ORDER BY minutes_before DESC`, v.ID); e != nil {
+	if e := r.db.SelectContext(r.ctx, "reminder.list", &rr, sqlReminderListQuery, v.ID); e != nil {
 		return domain.Event{}, e
 	}
 	for _, m := range rr {

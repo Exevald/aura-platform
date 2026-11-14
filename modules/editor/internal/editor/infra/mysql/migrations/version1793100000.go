@@ -20,6 +20,20 @@ func (*attachmentMigration) Description() string {
 }
 
 func (m *attachmentMigration) Up(ctx context.Context) error {
-	_, e := m.client.ExecContext(ctx, "create-document-attachment", `CREATE TABLE IF NOT EXISTS document_attachment(document_id BINARY(16) NOT NULL,file_id CHAR(36) NOT NULL,workspace_id BINARY(16) NOT NULL,file_name VARCHAR(255) NOT NULL,content_type VARCHAR(255) NOT NULL,size_bytes BIGINT NOT NULL,created_at DATETIME(6) NOT NULL,PRIMARY KEY(document_id,file_id),CONSTRAINT document_attachment_document_fk FOREIGN KEY(document_id) REFERENCES document(id) ON DELETE CASCADE) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+	const sqlCreateDocumentAttachmentQuery = `
+		CREATE TABLE IF NOT EXISTS document_attachment(
+		    document_id BINARY(16) NOT NULL,
+		    file_id CHAR(36) NOT NULL,
+		    workspace_id BINARY(16) NOT NULL,
+		    file_name VARCHAR(255) NOT NULL,
+		    content_type VARCHAR(255) NOT NULL,
+		    size_bytes BIGINT NOT NULL,
+		    created_at DATETIME(6) NOT NULL,
+		    PRIMARY KEY(document_id, file_id),
+		    CONSTRAINT document_attachment_document_fk FOREIGN KEY(document_id) REFERENCES document(id) ON DELETE CASCADE
+		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
+	`
+
+	_, e := m.client.ExecContext(ctx, "create-document-attachment", sqlCreateDocumentAttachmentQuery)
 	return e
 }

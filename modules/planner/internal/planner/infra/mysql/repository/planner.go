@@ -45,13 +45,38 @@ type taskRow struct {
 }
 
 func (r *repo) StoreProject(v domain.Project) error {
-	_, e := r.db.ExecContext(r.ctx, "project.store", `INSERT INTO project(id,workspace_id,name,created_at,updated_at) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE name=VALUES(name),updated_at=VALUES(updated_at)`, v.ID, v.WorkspaceID, v.Name, v.CreatedAt, v.UpdatedAt)
+	const sqlProjectStoreQuery = `
+		INSERT INTO project(
+		    id,
+		    workspace_id,
+		    name,
+		    created_at,
+		    updated_at
+		)
+		VALUES (?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		    name = VALUES (name),
+		    updated_at = VALUES (updated_at)
+	`
+
+	_, e := r.db.ExecContext(r.ctx, "project.store", sqlProjectStoreQuery, v.ID, v.WorkspaceID, v.Name, v.CreatedAt, v.UpdatedAt)
 	return e
 }
 
 func (r *repo) FindProject(id uuid.UUID) (domain.Project, error) {
+	const sqlProjectFindQuery = `
+		SELECT
+		    id,
+		    workspace_id,
+		    name,
+		    created_at,
+		    updated_at
+		FROM project
+		WHERE id = ?
+	`
+
 	var v projectRow
-	e := r.db.GetContext(r.ctx, "project.find", &v, `SELECT id,workspace_id,name,created_at,updated_at FROM project WHERE id=?`, id)
+	e := r.db.GetContext(r.ctx, "project.find", &v, sqlProjectFindQuery, id)
 	if errors.Is(e, sql.ErrNoRows) {
 		e = domain.ErrNotFound
 	}
@@ -59,8 +84,20 @@ func (r *repo) FindProject(id uuid.UUID) (domain.Project, error) {
 }
 
 func (r *repo) ListProjects(w uuid.UUID) ([]domain.Project, error) {
+	const sqlProjectListQuery = `
+		SELECT
+		    id,
+		    workspace_id,
+		    name,
+		    created_at,
+		    updated_at
+		FROM project
+		WHERE workspace_id = ?
+		ORDER BY name
+	`
+
 	var rows []projectRow
-	e := r.db.SelectContext(r.ctx, "project.list", &rows, `SELECT id,workspace_id,name,created_at,updated_at FROM project WHERE workspace_id=? ORDER BY name`, w)
+	e := r.db.SelectContext(r.ctx, "project.list", &rows, sqlProjectListQuery, w)
 	out := make([]domain.Project, 0, len(rows))
 	for _, v := range rows {
 		out = append(out, domain.Project(v))
@@ -69,7 +106,12 @@ func (r *repo) ListProjects(w uuid.UUID) ([]domain.Project, error) {
 }
 
 func (r *repo) DeleteProject(w, id uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "project.delete", `DELETE FROM project WHERE id=? AND workspace_id=?`, id, w)
+	const sqlProjectDeleteQuery = `
+		DELETE FROM project
+		WHERE id = ? AND workspace_id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "project.delete", sqlProjectDeleteQuery, id, w)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound
@@ -78,9 +120,47 @@ func (r *repo) DeleteProject(w, id uuid.UUID) error {
 	return e
 }
 
-const taskColumns = `id,project_id,title,description,status,priority,assignee_user_id,due_at,calendar_id,calendar_event_id,timezone,sync_to_calendar,version,created_at,updated_at`
-
 func (r *repo) StoreTask(v domain.Task, expected int64) (domain.Task, error) {
+	const (
+		sqlTaskInsertQuery = `
+			INSERT INTO task(
+			    id,
+			    project_id,
+			    title,
+			    description,
+			    status,
+			    priority,
+			    assignee_user_id,
+			    due_at,
+			    calendar_id,
+			    calendar_event_id,
+			    timezone,
+			    sync_to_calendar,
+			    version,
+			    created_at,
+			    updated_at
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`
+		sqlTaskUpdateQuery = `
+			UPDATE task
+			SET
+			    title = ?,
+			    description = ?,
+			    status = ?,
+			    priority = ?,
+			    assignee_user_id = ?,
+			    due_at = ?,
+			    calendar_id = ?,
+			    calendar_event_id = ?,
+			    timezone = ?,
+			    sync_to_calendar = ?,
+			    version = version+1,
+			    updated_at = ?
+			WHERE id = ? AND version = ?
+		`
+	)
+
 	args := func(x uuid.UUID) any {
 		if x == uuid.Nil() {
 			return nil
@@ -92,10 +172,10 @@ func (r *repo) StoreTask(v domain.Task, expected int64) (domain.Task, error) {
 		due = *v.DueAt
 	}
 	if expected == 0 {
-		_, e := r.db.ExecContext(r.ctx, "task.insert", `INSERT INTO task(id,project_id,title,description,status,priority,assignee_user_id,due_at,calendar_id,calendar_event_id,timezone,sync_to_calendar,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, v.ID, v.ProjectID, v.Title, v.Description, v.Status, v.Priority, args(v.AssigneeUserID), due, args(v.CalendarID), args(v.CalendarEventID), v.Timezone, v.SyncToCalendar, v.Version, v.CreatedAt, v.UpdatedAt)
+		_, e := r.db.ExecContext(r.ctx, "task.insert", sqlTaskInsertQuery, v.ID, v.ProjectID, v.Title, v.Description, v.Status, v.Priority, args(v.AssigneeUserID), due, args(v.CalendarID), args(v.CalendarEventID), v.Timezone, v.SyncToCalendar, v.Version, v.CreatedAt, v.UpdatedAt)
 		return v, e
 	}
-	res, e := r.db.ExecContext(r.ctx, "task.update", `UPDATE task SET title=?,description=?,status=?,priority=?,assignee_user_id=?,due_at=?,calendar_id=?,calendar_event_id=?,timezone=?,sync_to_calendar=?,version=version+1,updated_at=? WHERE id=? AND version=?`, v.Title, v.Description, v.Status, v.Priority, args(v.AssigneeUserID), due, args(v.CalendarID), args(v.CalendarEventID), v.Timezone, v.SyncToCalendar, v.UpdatedAt, v.ID, expected)
+	res, e := r.db.ExecContext(r.ctx, "task.update", sqlTaskUpdateQuery, v.Title, v.Description, v.Status, v.Priority, args(v.AssigneeUserID), due, args(v.CalendarID), args(v.CalendarEventID), v.Timezone, v.SyncToCalendar, v.UpdatedAt, v.ID, expected)
 	if e != nil {
 		return domain.Task{}, e
 	}
@@ -107,8 +187,29 @@ func (r *repo) StoreTask(v domain.Task, expected int64) (domain.Task, error) {
 }
 
 func (r *repo) FindTask(id uuid.UUID) (domain.Task, error) {
+	const sqlTaskFindQuery = `
+		SELECT
+		    id,
+		    project_id,
+		    title,
+		    description,
+		    status,
+		    priority,
+		    assignee_user_id,
+		    due_at,
+		    calendar_id,
+		    calendar_event_id,
+		    timezone,
+		    sync_to_calendar,
+		    version,
+		    created_at,
+		    updated_at
+		FROM task
+		WHERE id = ?
+	`
+
 	var v taskRow
-	e := r.db.GetContext(r.ctx, "task.find", &v, `SELECT `+taskColumns+` FROM task WHERE id=?`, id)
+	e := r.db.GetContext(r.ctx, "task.find", &v, sqlTaskFindQuery, id)
 	if errors.Is(e, sql.ErrNoRows) {
 		return domain.Task{}, domain.ErrNotFound
 	}
@@ -119,8 +220,30 @@ func (r *repo) FindTask(id uuid.UUID) (domain.Task, error) {
 }
 
 func (r *repo) ListTasks(p uuid.UUID) ([]domain.Task, error) {
+	const sqlTaskListQuery = `
+		SELECT
+		    id,
+		    project_id,
+		    title,
+		    description,
+		    status,
+		    priority,
+		    assignee_user_id,
+		    due_at,
+		    calendar_id,
+		    calendar_event_id,
+		    timezone,
+		    sync_to_calendar,
+		    version,
+		    created_at,
+		    updated_at
+		FROM task
+		WHERE project_id = ?
+		ORDER BY status, due_at, created_at
+	`
+
 	var rows []taskRow
-	e := r.db.SelectContext(r.ctx, "task.list", &rows, `SELECT `+taskColumns+` FROM task WHERE project_id=? ORDER BY status,due_at,created_at`, p)
+	e := r.db.SelectContext(r.ctx, "task.list", &rows, sqlTaskListQuery, p)
 	out := make([]domain.Task, 0, len(rows))
 	for _, v := range rows {
 		out = append(out, v.domain())
@@ -129,7 +252,12 @@ func (r *repo) ListTasks(p uuid.UUID) ([]domain.Task, error) {
 }
 
 func (r *repo) DeleteTask(id uuid.UUID) error {
-	res, e := r.db.ExecContext(r.ctx, "task.delete", `DELETE FROM task WHERE id=?`, id)
+	const sqlTaskDeleteQuery = `
+		DELETE FROM task
+		WHERE id = ?
+	`
+
+	res, e := r.db.ExecContext(r.ctx, "task.delete", sqlTaskDeleteQuery, id)
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return domain.ErrNotFound
