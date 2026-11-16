@@ -18,16 +18,6 @@ type moduleAccessRepository struct {
 	client mysql.ClientContext
 }
 
-type moduleAccessRow struct {
-	ID        binaryUUID   `db:"id"`
-	UserID    binaryUUID   `db:"user_id"`
-	ModuleID  binaryUUID   `db:"module_id"`
-	Effect    model.Effect `db:"effect"`
-	SourceID  string       `db:"source_id"`
-	CreatedAt time.Time    `db:"created_at"`
-	UpdatedAt time.Time    `db:"updated_at"`
-}
-
 func NewModuleAccessRepository(
 	ctx context.Context,
 	client mysql.ClientContext,
@@ -165,7 +155,17 @@ func (r *moduleAccessRepository) DeleteBySourceAndUser(sourceID string, userID u
 	return errors.WithStack(err)
 }
 
-func (r moduleAccessRow) toDomainModel() model.ModuleAccess {
+type moduleAccessRow struct {
+	ID        binaryUUID   `db:"id"`
+	UserID    binaryUUID   `db:"user_id"`
+	ModuleID  binaryUUID   `db:"module_id"`
+	Effect    model.Effect `db:"effect"`
+	SourceID  string       `db:"source_id"`
+	CreatedAt time.Time    `db:"created_at"`
+	UpdatedAt time.Time    `db:"updated_at"`
+}
+
+func (r *moduleAccessRow) toDomainModel() model.ModuleAccess {
 	return model.ModuleAccess{
 		ID:        r.ID.UUID(),
 		UserID:    r.UserID.UUID(),

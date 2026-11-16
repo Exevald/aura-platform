@@ -61,7 +61,12 @@ func NewModuleAccessService(
 
 func (s *moduleAccessService) GrantModuleAccess(ctx context.Context, userID, moduleID uuid.UUID) error {
 	return s.unit.Execute(ctx, func(provider RepositoryProvider) error {
-		_, err := s.domainService(ctx, provider).CreateWithSource(userID, moduleID, model.EffectAllow, directSource(moduleID))
+		_, err := s.domainService(ctx, provider).CreateWithSource(
+			userID,
+			moduleID,
+			model.EffectAllow,
+			directSource(moduleID),
+		)
 		return err
 	})
 }

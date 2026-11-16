@@ -153,7 +153,11 @@ func activeModules(operations []model.ModuleShare, ownerID uuid.UUID) map[uuid.U
 	return active
 }
 
-func addsModulesToEmptyGroup(desired map[uuid.UUID]struct{}, active map[uuid.UUID]model.ModuleShare, members []uuid.UUID) bool {
+func addsModulesToEmptyGroup(
+	desired map[uuid.UUID]struct{},
+	active map[uuid.UUID]model.ModuleShare,
+	members []uuid.UUID,
+) bool {
 	if len(members) != 0 {
 		return false
 	}
@@ -177,7 +181,13 @@ func (s *moduleAccessService) replaceGroupModules(
 	groupService := s.groupModuleAccessService(ctx, p)
 	for moduleID, operation := range active {
 		if _, keep := desired[moduleID]; !keep {
-			if err := groupService.Cancel(operation.ShareID, operation.ModuleID, operation.GroupID, "revoked_by_owner"); err != nil {
+			err := groupService.Cancel(
+				operation.ShareID,
+				operation.ModuleID,
+				operation.GroupID,
+				"revoked_by_owner",
+			)
+			if err != nil {
 				return nil, err
 			}
 		}
@@ -188,7 +198,12 @@ func (s *moduleAccessService) replaceGroupModules(
 			result = append(result, operation)
 			continue
 		}
-		operation := model.ModuleShare{ShareID: uuid.New(), ModuleID: moduleID, GroupID: groupID, OwnerUserID: ownerID}
+		operation := model.ModuleShare{
+			ShareID:     uuid.New(),
+			ModuleID:    moduleID,
+			GroupID:     groupID,
+			OwnerUserID: ownerID,
+		}
 		if err := groupService.Grant(operation, members); err != nil {
 			return nil, err
 		}

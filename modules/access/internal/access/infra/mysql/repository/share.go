@@ -16,16 +16,6 @@ type moduleShareOperationRepository struct {
 	client mysql.ClientContext
 }
 
-type moduleShareOperationRow struct {
-	ShareID     binaryUUID              `db:"share_id"`
-	ModuleID    binaryUUID              `db:"module_id"`
-	GroupID     binaryUUID              `db:"group_id"`
-	OwnerUserID binaryUUID              `db:"owner_user_id"`
-	Status      model.ModuleShareStatus `db:"status"`
-	CreatedAt   time.Time               `db:"created_at"`
-	UpdatedAt   time.Time               `db:"updated_at"`
-}
-
 func NewModuleShareOperation(ctx context.Context, client mysql.ClientContext) model.ModuleShareRepository {
 	return &moduleShareOperationRepository{ctx: ctx, client: client}
 }
@@ -50,7 +40,7 @@ func (r *moduleShareOperationRepository) ListByGroup(group uuid.UUID) ([]model.M
 	}
 	result := make([]model.ModuleShare, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, row.domain())
+		result = append(result, row.toDomainModel())
 	}
 	return result, nil
 }
@@ -75,7 +65,7 @@ func (r *moduleShareOperationRepository) ListByOwner(owner uuid.UUID) ([]model.M
 	}
 	result := make([]model.ModuleShare, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, row.domain())
+		result = append(result, row.toDomainModel())
 	}
 	return result, nil
 }
@@ -99,7 +89,7 @@ func (r *moduleShareOperationRepository) Find(id uuid.UUID) (model.ModuleShare, 
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.ModuleShare{}, model.ErrModuleShareOperationNotFound
 	}
-	return row.domain(), err
+	return row.toDomainModel(), err
 }
 
 func (r *moduleShareOperationRepository) Store(op model.ModuleShare) error {
@@ -123,6 +113,24 @@ func (r *moduleShareOperationRepository) Store(op model.ModuleShare) error {
 	return err
 }
 
-func (r moduleShareOperationRow) domain() model.ModuleShare {
-	return model.ModuleShare{ShareID: r.ShareID.UUID(), ModuleID: r.ModuleID.UUID(), GroupID: r.GroupID.UUID(), OwnerUserID: r.OwnerUserID.UUID(), Status: r.Status, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+type moduleShareOperationRow struct {
+	ShareID     binaryUUID              `db:"share_id"`
+	ModuleID    binaryUUID              `db:"module_id"`
+	GroupID     binaryUUID              `db:"group_id"`
+	OwnerUserID binaryUUID              `db:"owner_user_id"`
+	Status      model.ModuleShareStatus `db:"status"`
+	CreatedAt   time.Time               `db:"created_at"`
+	UpdatedAt   time.Time               `db:"updated_at"`
+}
+
+func (r *moduleShareOperationRow) toDomainModel() model.ModuleShare {
+	return model.ModuleShare{
+		ShareID:     r.ShareID.UUID(),
+		ModuleID:    r.ModuleID.UUID(),
+		GroupID:     r.GroupID.UUID(),
+		OwnerUserID: r.OwnerUserID.UUID(),
+		Status:      r.Status,
+		CreatedAt:   r.CreatedAt,
+		UpdatedAt:   r.UpdatedAt,
+	}
 }
