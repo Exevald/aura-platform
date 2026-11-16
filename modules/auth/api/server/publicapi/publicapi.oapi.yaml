@@ -54,8 +54,57 @@ paths:
         "400": { $ref: "#/components/responses/badRequest" }
         "401": { $ref: "#/components/responses/unauthorized" }
         "503": { $ref: "#/components/responses/unavailable" }
+  /api/public/v1/auth/sso/ticket:
+    post:
+      operationId: issueSsoTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ssoTicketRequest" }
+      responses:
+        "200":
+          description: One-time transfer code
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ssoTicketResult" }
+        "400": { $ref: "#/components/responses/badRequest" }
+        "401": { $ref: "#/components/responses/unauthorized" }
+        "503": { $ref: "#/components/responses/unavailable" }
+  /api/public/v1/auth/sso/consume:
+    post:
+      operationId: consumeSsoTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ssoConsumeRequest" }
+      responses:
+        "204":
+          description: Product session created
+          headers:
+            Set-Cookie:
+              required: true
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/badRequest" }
+        "503": { $ref: "#/components/responses/unavailable" }
 components:
   schemas:
+    ssoTicketRequest:
+      type: object
+      required: [ targetHost ]
+      properties:
+        targetHost: { type: string, minLength: 1 }
+    ssoTicketResult:
+      type: object
+      required: [ code ]
+      properties:
+        code: { type: string }
+    ssoConsumeRequest:
+      type: object
+      required: [ code ]
+      properties:
+        code: { type: string, minLength: 1 }
     loginRequest:
       type: object
       required: [ login, password, rememberMe ]

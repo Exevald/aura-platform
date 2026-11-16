@@ -105,11 +105,14 @@ func (s *authService) Logout(ctx context.Context, sessionID uuid.UUID) error {
 	if sessionID == uuid.Nil() {
 		return nil
 	}
-	err := s.sessionAdapter.RevokeSession(ctx, sessionID)
+	userID, _, err := s.sessionAdapter.ValidateSession(ctx, sessionID)
 	if errors.Is(err, ErrSessionNotFound) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	return s.sessionAdapter.RevokeUserSessions(ctx, userID)
 }
 
 func (s *authService) ChangePassword(ctx context.Context, sessionID uuid.UUID, current, next string) error {

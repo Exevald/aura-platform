@@ -2,23 +2,17 @@ package integration_tests
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/mysql"
+	"github.com/distributed-programming-2026/lib/integrationtest"
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/testcontainers/testcontainers-go"
-	tcmysql "github.com/testcontainers/testcontainers-go/modules/mysql"
-	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"auth/internal/auth/config"
@@ -31,13 +25,12 @@ var testEnv *environment
 type environment struct {
 	conf      config.Env
 	connector mysql.Connector
-	network   *testcontainers.DockerNetwork
-	logs      logBuffer
-	closers   []func() error
+	*integrationtest.Environment
 }
 
 func TestMain(m *testing.M) {
-	os.Exit(runTests(m))
+	testEnv = &environment{Environment: integrationtest.New()}
+	os.Exit(integrationtest.Run(m, testEnv.Environment, testEnv.prepare))
 }
 
 func (e *environment) prepare(ctx context.Context) error {
@@ -46,33 +39,10 @@ func (e *environment) prepare(ctx context.Context) error {
 		return err
 	}
 
-	e.network, err = network.New(ctx)
-	if err != nil {
+	if err := e.StartNetwork(ctx); err != nil {
 		return err
 	}
-	e.closers = append(e.closers, func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return e.network.Remove(ctx)
-	})
-
-	mysqlContainer, err := tcmysql.Run(ctx, "mysql:8.4",
-		tcmysql.WithDatabase(moduleID+"_test"),
-		tcmysql.WithUsername(moduleID),
-		tcmysql.WithPassword("integration:password@local"),
-		network.WithNetwork([]string{"mysql"}, e.network),
-	)
-	if err != nil {
-		return err
-	}
-	if mysqlContainer == nil {
-		return nil
-	}
-	e.closers = append(e.closers, func() error {
-		return testcontainers.TerminateContainer(mysqlContainer)
-	})
-
-	dsn, err := mysqlContainer.ConnectionString(ctx, "parseTime=true")
+	dsn, err := e.StartMySQL(ctx, moduleID, "mysql", "integration:password@local")
 	if err != nil {
 		return err
 	}
@@ -85,7 +55,7 @@ func (e *environment) prepare(ctx context.Context) error {
 	e.conf.MySQL.User = databaseConfig.User
 	e.conf.MySQL.Password = databaseConfig.Passwd
 
-	err = e.startBroker(ctx)
+	e.conf.AMQP.URL, err = e.StartBroker(ctx, "integration", "integration-password")
 	if err != nil {
 		return err
 	}
@@ -103,7 +73,7 @@ func (e *environment) prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	e.closers = append(e.closers, e.connector.Close)
+	e.AddCloser(e.connector.Close)
 
 	e.conf.App.GraceTimeout = time.Second
 	e.conf.Relay.Interval = 50 * time.Millisecond
@@ -113,38 +83,28 @@ func (e *environment) prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	e.conf.HTTP.Address, err = containerAddress(ctx, service, "8082/tcp")
+	e.conf.HTTP.Address, err = integrationtest.Address(ctx, service, "8082/tcp")
 	if err != nil {
 		return err
 	}
-	e.conf.GRPC.Address, err = containerAddress(ctx, service, "8081/tcp")
+	e.conf.GRPC.Address, err = integrationtest.Address(ctx, service, "8081/tcp")
 	return err
 }
 
 func (e *environment) startDependencyDatabase(ctx context.Context, module, alias string) error {
-	container, err := tcmysql.Run(ctx, "mysql:8.4",
-		tcmysql.WithDatabase(module+"_test"),
-		tcmysql.WithUsername(module),
-		tcmysql.WithPassword("integration:password@local"),
-		network.WithNetwork([]string{alias}, e.network),
-	)
-	if container != nil {
-		e.closers = append(e.closers, func() error {
-			return testcontainers.TerminateContainer(container)
-		})
-	}
+	_, err := e.StartMySQL(ctx, module, alias, "integration:password@local")
 	return err
 }
 
 func (e *environment) startDependencyApplication(ctx context.Context, module, mysqlAlias string) (testcontainers.Container, error) {
 	prefix := strings.ToUpper(module) + "_"
-	return e.startContainer(ctx, testcontainers.ContainerRequest{
+	return e.StartContainer(ctx, testcontainers.ContainerRequest{
 		Image:        "distributed-programming-" + module + ":integration",
 		Cmd:          []string{"service"},
 		ExposedPorts: []string{"8081/tcp", "8082/tcp"},
-		Networks:     []string{e.network.Name},
+		Networks:     []string{e.Network.Name},
 		NetworkAliases: map[string][]string{
-			e.network.Name: {module},
+			e.Network.Name: {module},
 		},
 		Env: map[string]string{
 			prefix + "MYSQL_ADDRESS":         mysqlAlias + ":3306",
@@ -159,129 +119,29 @@ func (e *environment) startDependencyApplication(ctx context.Context, module, my
 			prefix + "RELAY_PUBLISH_TIMEOUT": e.conf.Relay.PublishTimeout.String(),
 		},
 		LogConsumerCfg: &testcontainers.LogConsumerConfig{
-			Consumers: []testcontainers.LogConsumer{&e.logs},
+			Consumers: []testcontainers.LogConsumer{&e.Logs},
 		},
 		WaitingFor: wait.ForHTTP("/healthz").WithPort("8082/tcp").WithStatusCodeMatcher(func(status int) bool {
 			return status == http.StatusNoContent
 		}).WithStartupTimeout(time.Minute),
 	})
-}
-
-func (e *environment) startBroker(ctx context.Context) error {
-	broker, err := e.startContainer(ctx, testcontainers.ContainerRequest{
-		Image:        "rabbitmq:4.1-alpine",
-		ExposedPorts: []string{"5672/tcp"},
-		Networks:     []string{e.network.Name},
-		NetworkAliases: map[string][]string{
-			e.network.Name: {"rabbitmq"},
-		},
-		Env: map[string]string{
-			"RABBITMQ_DEFAULT_USER": "integration",
-			"RABBITMQ_DEFAULT_PASS": "integration-password",
-		},
-		WaitingFor: wait.ForLog("Server startup complete").WithStartupTimeout(time.Minute),
-	})
-	if err != nil {
-		return err
-	}
-	address, err := containerAddress(ctx, broker, "5672/tcp")
-	if err != nil {
-		return err
-	}
-	brokerURL := &url.URL{
-		Scheme: "amqp",
-		User:   url.UserPassword("integration", "integration-password"),
-		Host:   address,
-		Path:   "/",
-	}
-	e.conf.AMQP.URL = brokerURL.String()
-	return nil
 }
 
 func (e *environment) startApplication(ctx context.Context, command string) (testcontainers.Container, error) {
 	prefix := strings.ToUpper(moduleID) + "_"
-	return e.startContainer(ctx, testcontainers.ContainerRequest{
-		Image:        "distributed-programming-auth:integration",
-		Cmd:          []string{command},
-		ExposedPorts: []string{"8081/tcp", "8082/tcp"},
-		Networks:     []string{e.network.Name},
-		Env: map[string]string{
-			prefix + "MYSQL_ADDRESS":                "mysql:3306",
-			prefix + "MYSQL_DATABASE":               e.conf.MySQL.Database,
-			prefix + "MYSQL_USER":                   e.conf.MySQL.User,
-			prefix + "MYSQL_PASSWORD":               e.conf.MySQL.Password,
-			prefix + "AMQP_URL":                     "amqp://integration:integration-password@rabbitmq:5672/",
-			prefix + "HTTP_ADDRESS":                 ":8082",
-			prefix + "GRPC_ADDRESS":                 ":8081",
-			prefix + "APP_GRACE_TIMEOUT":            e.conf.App.GraceTimeout.String(),
-			prefix + "RELAY_INTERVAL":               e.conf.Relay.Interval.String(),
-			prefix + "RELAY_PUBLISH_TIMEOUT":        e.conf.Relay.PublishTimeout.String(),
-			prefix + "DEPENDENCIES_SESSION_ADDRESS": "session:8081",
-			prefix + "DEPENDENCIES_TIMEOUT":         "5s",
-			prefix + "COOKIE_SECURE":                "false",
-		},
-		LogConsumerCfg: &testcontainers.LogConsumerConfig{
-			Consumers: []testcontainers.LogConsumer{&e.logs},
-		},
-		WaitingFor: wait.ForHTTP("/healthz").WithPort("8082/tcp").WithStatusCodeMatcher(func(status int) bool {
-			return status == http.StatusNoContent
-		}).WithStartupTimeout(time.Minute),
+	return e.StartService(ctx, "distributed-programming-auth:integration", command, map[string]string{
+		prefix + "MYSQL_ADDRESS":                "mysql:3306",
+		prefix + "MYSQL_DATABASE":               e.conf.MySQL.Database,
+		prefix + "MYSQL_USER":                   e.conf.MySQL.User,
+		prefix + "MYSQL_PASSWORD":               e.conf.MySQL.Password,
+		prefix + "AMQP_URL":                     "amqp://integration:integration-password@rabbitmq:5672/",
+		prefix + "HTTP_ADDRESS":                 ":8082",
+		prefix + "GRPC_ADDRESS":                 ":8081",
+		prefix + "APP_GRACE_TIMEOUT":            e.conf.App.GraceTimeout.String(),
+		prefix + "RELAY_INTERVAL":               e.conf.Relay.Interval.String(),
+		prefix + "RELAY_PUBLISH_TIMEOUT":        e.conf.Relay.PublishTimeout.String(),
+		prefix + "DEPENDENCIES_SESSION_ADDRESS": "session:8081",
+		prefix + "DEPENDENCIES_TIMEOUT":         "5s",
+		prefix + "COOKIE_SECURE":                "false",
 	})
-}
-
-func (e *environment) startContainer(ctx context.Context, request testcontainers.ContainerRequest) (testcontainers.Container, error) {
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: request,
-		Started:          true,
-	})
-	if container != nil {
-		e.closers = append(e.closers, func() error {
-			return testcontainers.TerminateContainer(container)
-		})
-	}
-	return container, err
-}
-
-func (e *environment) close() error {
-	var errs []error
-	for _, v := range slices.Backward(e.closers) {
-		errs = append(errs, v())
-	}
-	return errors.Join(errs...)
-}
-
-func runTests(m *testing.M) (exitCode int) {
-	testEnv = &environment{}
-	defer func() {
-		err := testEnv.close()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			exitCode = 1
-		}
-		if exitCode != 0 {
-			fmt.Fprintln(os.Stderr, testEnv.logs.String())
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	err := testEnv.prepare(ctx)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	return m.Run()
-}
-
-func containerAddress(ctx context.Context, container testcontainers.Container, port string) (string, error) {
-	host, err := container.Host(ctx)
-	if err != nil {
-		return "", err
-	}
-	mappedPort, err := container.MappedPort(ctx, port)
-	if err != nil {
-		return "", err
-	}
-	return net.JoinHostPort(host, mappedPort.Port()), nil
 }

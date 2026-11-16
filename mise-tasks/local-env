@@ -7,6 +7,72 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
+
+LOCAL_HOSTS = [
+    "aura-platform.home",
+    "aura-platform.auth",
+    "aura-platform.documents",
+    "aura-platform.calendar",
+    "aura-platform.planner",
+    "aura-platform.shortlinks",
+    "aura-platform.notifications",
+]
+HOSTS_MARKER = "# aura-platform local"
+
+
+def ensure_hosts(root):
+    mappings = host_mappings(Path("/etc/hosts").read_text())
+    conflicts = [host for host in LOCAL_HOSTS if host in mappings and mappings[host] != "127.0.0.1"]
+    if conflicts:
+        sys.exit("Conflicting /etc/hosts entries: " + ", ".join(conflicts))
+    missing = [host for host in LOCAL_HOSTS if mappings.get(host) != "127.0.0.1"]
+    if missing:
+        print("Configuring local Aura addresses (administrator password may be required):", flush=True)
+        subprocess.run(["sudo", sys.executable, str(root / "mise-tasks/local-env"), "install-hosts"], check=True)
+
+
+def host_mappings(contents):
+    mappings = {}
+    for line in contents.splitlines():
+        fields = line.split("#", 1)[0].split()
+        if fields:
+            for host in fields[1:]:
+                mappings.setdefault(host, fields[0])
+    return mappings
+
+
+def install_hosts():
+    hosts_path = Path("/etc/hosts")
+    contents = hosts_path.read_text()
+    mappings = host_mappings(contents)
+    conflicts = [host for host in LOCAL_HOSTS if host in mappings and mappings[host] != "127.0.0.1"]
+    if conflicts:
+        sys.exit("Conflicting /etc/hosts entries: " + ", ".join(conflicts))
+    lines = contents.splitlines()
+    lines = [line for line in lines if HOSTS_MARKER not in line]
+    lines.append("127.0.0.1 " + " ".join(LOCAL_HOSTS) + " " + HOSTS_MARKER)
+    hosts_path.write_text("\n".join(lines) + "\n")
+
+
+def wait_for_gateway(port):
+    status = f"http://127.0.0.1:{port}/gateway/status"
+    frontend = f"http://127.0.0.1:{port}/"
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(status, timeout=2) as response:
+                if response.status != 200:
+                    raise RuntimeError(f"Gateway returned HTTP {response.status}")
+            request = urllib.request.Request(frontend, headers={"Host": "aura-platform.home"})
+            with urllib.request.urlopen(request, timeout=2) as response:
+                if response.status == 200 and b"<html" in response.read(2048).lower():
+                    return
+        except (OSError, urllib.error.URLError, RuntimeError):
+            time.sleep(1)
+    sys.exit(f"Gateway or frontend did not become ready on port {port}; inspect 'mise run local-logs'")
 
 
 def find_compose_command():
@@ -26,14 +92,35 @@ def find_compose_command():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["up", "down", "ps", "config", "logs"])
+    parser.add_argument("action", choices=["up", "down", "ps", "config", "logs", "install-hosts"])
     parser.add_argument("--infra-only", action="store_true")
+    parser.add_argument("--skip-hosts", action="store_true", help="Skip /etc/hosts setup (for CI or existing DNS)")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
+    if args.action == "install-hosts":
+        install_hosts()
+        return
     modules = sorted(root.glob("modules/*/compose.yaml"), key=lambda path: (path.parent.name != "template", path.parent.name))
     frontend_compose = root / "frontend" / "compose.yaml"
     env = dict(os.environ)
+    env.setdefault("COMPOSE_PARALLEL_LIMIT", "2")
     used_ports = set()
+    reserved_ports = {
+        "LOCAL_WEB_PORT": 80,
+        "LOCAL_GATEWAY_HEALTH_PORT": 15000,
+        "LOCAL_MYSQL_PORT": 3306,
+        "LOCAL_AMQP_PORT": 5672,
+        "LOCAL_AMQP_MANAGEMENT_PORT": 15672,
+        "LOCAL_MINIO_PORT": 9000,
+        "LOCAL_MINIO_CONSOLE_PORT": 9001,
+        "LOCAL_SMTP_PORT": 1025,
+        "LOCAL_MAILPIT_PORT": 8025,
+    }
+    for key, default in reserved_ports.items():
+        port = int(env.get(key, default))
+        if not 0 < port < 65536 or port in used_ports:
+            sys.exit(f"Invalid or duplicate local port: {key}={port}")
+        used_ports.add(port)
     keys = [f"{path.parent.name.upper()}_{kind}_PORT" for path in modules for kind in ["GRPC", "HTTP", "MESSAGE_HANDLER"]]
     for key in keys:
         if key in env:
@@ -63,10 +150,11 @@ def main():
     if args.action == "up":
         if not args.infra_only:
             architecture = subprocess.check_output(["docker", "info", "--format", "{{.Architecture}}"], env=env, text=True).strip()
+            if not args.skip_hosts:
+                ensure_hosts(root)
             env["GOARCH"] = {"aarch64": "arm64", "x86_64": "amd64"}.get(architecture, architecture)
             for path in modules:
                 subprocess.run(["mise", "run", f"//modules/{path.parent.name}:build"], cwd=root, env=env, check=True)
-            subprocess.run(["mise", "run", "//frontend:build"], cwd=root, env=env, check=True)
         compose("up", "-d", "--wait", "mysql", "rabbitmq")
         # Provision every module on each up, including modules added after
         # the infrastructure volumes were created.
@@ -76,6 +164,11 @@ def main():
                 compose("exec", "-T", "mysql", "sh", "-c", 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql --user=root', input=init_sql.read_text(), text=True)
         if not args.infra_only:
             compose("up", "-d", "--build", "--wait")
+            web_port = env.get("LOCAL_WEB_PORT", "80")
+            wait_for_gateway(web_port)
+            suffix = "" if web_port == "80" else ":" + web_port
+            for host in LOCAL_HOSTS:
+                print("http://" + host + suffix + "/")
             for path in modules:
                 prefix = path.parent.name.upper()
                 print(f"{path.parent.name}: gRPC={env[prefix + '_GRPC_PORT']}, HTTP={env[prefix + '_HTTP_PORT']}, consumer health={env[prefix + '_MESSAGE_HANDLER_PORT']}")

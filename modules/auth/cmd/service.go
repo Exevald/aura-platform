@@ -69,7 +69,8 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 		clients.sessions,
 	)
 	registration := registrationinfra.New(db.xa, dispatcherFactory, hasher)
-	httpServer, err := newHTTPServer(logger, conf, svc)
+	sso := app.NewSSOService(clients.sessions, authmysql.NewSSOTicketStore(db.connector.TransactionalClient()))
+	httpServer, err := newHTTPServer(logger, conf, svc, sso)
 	if err != nil {
 		return err
 	}

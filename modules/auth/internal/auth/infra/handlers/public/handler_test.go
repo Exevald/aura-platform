@@ -1,6 +1,7 @@
 package public
 
 import (
+	"net/http"
 	"testing"
 	"time"
 	"uuid"
@@ -25,6 +26,7 @@ func TestSessionCookieUsesConfiguredDomain(t *testing.T) {
 	require.Equal(t, "/", cookie.Path)
 	require.True(t, cookie.HttpOnly)
 	require.True(t, cookie.Secure)
+	require.Equal(t, http.SameSiteLaxMode, cookie.SameSite)
 	require.Positive(t, cookie.MaxAge)
 	require.Equal(t, expiresAt, cookie.Expires)
 }

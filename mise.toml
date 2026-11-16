@@ -23,14 +23,16 @@ protoc-gen-go-grpc = "1.6.2"
 [tasks.all]
 description = "Generate, tidy, build, test, and lint every module sequentially"
 run = '''
-MISE_JOBS=1 mise run //lib:all
-MISE_JOBS=1 mise run //frontend:all
+#!/usr/bin/env sh
+set -eu
+mise run //lib:all
+mise run //frontend:all
 for config in modules/*/mise.toml; do
     [ -f "$config" ] || continue
     module=${config%/mise.toml}
-    MISE_JOBS=1 mise run "//$module:all"
+    mise run "//${module}:all"
 done
-MISE_JOBS=1 mise run //e2e:all
+mise run //e2e:all
 '''
 
 [tasks.local-up]

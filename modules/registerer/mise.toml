@@ -69,4 +69,7 @@ run = "golangci-lint run"
 
 [tasks.integration-tests]
 depends = ["build"]
-run = "go test -count=1 ./..."
+run = [
+    "docker build --tag distributed-programming-registerer:integration .",
+    "go test -v -count=1 ./internal/integration-tests",
+]

@@ -2,22 +2,16 @@ package integration_tests
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/mysql"
+	"github.com/distributed-programming-2026/lib/integrationtest"
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/testcontainers/testcontainers-go"
-	tcmysql "github.com/testcontainers/testcontainers-go/modules/mysql"
-	"github.com/testcontainers/testcontainers-go/network"
-	"github.com/testcontainers/testcontainers-go/wait"
 
 	"auditor/internal/auditor/config"
 )
@@ -29,13 +23,12 @@ var testEnv *environment
 type environment struct {
 	conf      config.Env
 	connector mysql.Connector
-	network   *testcontainers.DockerNetwork
-	logs      logBuffer
-	closers   []func() error
+	*integrationtest.Environment
 }
 
 func TestMain(m *testing.M) {
-	os.Exit(runTests(m))
+	testEnv = &environment{Environment: integrationtest.New()}
+	os.Exit(integrationtest.Run(m, testEnv.Environment, testEnv.prepare))
 }
 
 func (e *environment) prepare(ctx context.Context) error {
@@ -44,32 +37,10 @@ func (e *environment) prepare(ctx context.Context) error {
 		return err
 	}
 
-	e.network, err = network.New(ctx)
-	if err != nil {
+	if err := e.StartNetwork(ctx); err != nil {
 		return err
 	}
-	e.closers = append(e.closers, func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return e.network.Remove(ctx)
-	})
-
-	mysqlContainer, err := tcmysql.Run(ctx, "mysql:8.4",
-		tcmysql.WithDatabase(moduleID+"_test"),
-		tcmysql.WithUsername(moduleID),
-		tcmysql.WithPassword("integration:password@local"),
-		network.WithNetwork([]string{"mysql"}, e.network),
-	)
-	if mysqlContainer != nil {
-		e.closers = append(e.closers, func() error {
-			return testcontainers.TerminateContainer(mysqlContainer)
-		})
-	}
-	if err != nil {
-		return err
-	}
-
-	dsn, err := mysqlContainer.ConnectionString(ctx, "parseTime=true")
+	dsn, err := e.StartMySQL(ctx, moduleID, "mysql", "integration:password@local")
 	if err != nil {
 		return err
 	}
@@ -89,7 +60,7 @@ func (e *environment) prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	e.closers = append(e.closers, e.connector.Close)
+	e.AddCloser(e.connector.Close)
 
 	e.conf.App.GraceTimeout = time.Second
 
@@ -97,92 +68,23 @@ func (e *environment) prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	e.conf.HTTP.Address, err = containerAddress(ctx, service, "8082/tcp")
+	e.conf.HTTP.Address, err = integrationtest.Address(ctx, service, "8082/tcp")
 	if err != nil {
 		return err
 	}
-	e.conf.GRPC.Address, err = containerAddress(ctx, service, "8081/tcp")
+	e.conf.GRPC.Address, err = integrationtest.Address(ctx, service, "8081/tcp")
 	return err
 }
 
 func (e *environment) startApplication(ctx context.Context, command string) (testcontainers.Container, error) {
 	prefix := strings.ToUpper(moduleID) + "_"
-	return e.startContainer(ctx, testcontainers.ContainerRequest{
-		Image:        "distributed-programming-auditor:integration",
-		Cmd:          []string{command},
-		ExposedPorts: []string{"8081/tcp", "8082/tcp"},
-		Networks:     []string{e.network.Name},
-		Env: map[string]string{
-			prefix + "MYSQL_ADDRESS":     "mysql:3306",
-			prefix + "MYSQL_DATABASE":    e.conf.MySQL.Database,
-			prefix + "MYSQL_USER":        e.conf.MySQL.User,
-			prefix + "MYSQL_PASSWORD":    e.conf.MySQL.Password,
-			prefix + "HTTP_ADDRESS":      ":8082",
-			prefix + "GRPC_ADDRESS":      ":8081",
-			prefix + "APP_GRACE_TIMEOUT": e.conf.App.GraceTimeout.String(),
-		},
-		LogConsumerCfg: &testcontainers.LogConsumerConfig{
-			Consumers: []testcontainers.LogConsumer{&e.logs},
-		},
-		WaitingFor: wait.ForHTTP("/healthz").WithPort("8082/tcp").WithStatusCodeMatcher(func(status int) bool {
-			return status == http.StatusNoContent
-		}).WithStartupTimeout(time.Minute),
+	return e.StartService(ctx, "distributed-programming-auditor:integration", command, map[string]string{
+		prefix + "MYSQL_ADDRESS":     "mysql:3306",
+		prefix + "MYSQL_DATABASE":    e.conf.MySQL.Database,
+		prefix + "MYSQL_USER":        e.conf.MySQL.User,
+		prefix + "MYSQL_PASSWORD":    e.conf.MySQL.Password,
+		prefix + "HTTP_ADDRESS":      ":8082",
+		prefix + "GRPC_ADDRESS":      ":8081",
+		prefix + "APP_GRACE_TIMEOUT": e.conf.App.GraceTimeout.String(),
 	})
-}
-
-func (e *environment) startContainer(ctx context.Context, request testcontainers.ContainerRequest) (testcontainers.Container, error) {
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: request,
-		Started:          true,
-	})
-	if container != nil {
-		e.closers = append(e.closers, func() error {
-			return testcontainers.TerminateContainer(container)
-		})
-	}
-	return container, err
-}
-
-func (e *environment) close() error {
-	var errs []error
-	for i := len(e.closers) - 1; i >= 0; i-- {
-		errs = append(errs, e.closers[i]())
-	}
-	return errors.Join(errs...)
-}
-
-func runTests(m *testing.M) (exitCode int) {
-	testEnv = &environment{}
-	defer func() {
-		err := testEnv.close()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			exitCode = 1
-		}
-		if exitCode != 0 {
-			fmt.Fprintln(os.Stderr, testEnv.logs.String())
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	err := testEnv.prepare(ctx)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	return m.Run()
-}
-
-func containerAddress(ctx context.Context, container testcontainers.Container, port string) (string, error) {
-	host, err := container.Host(ctx)
-	if err != nil {
-		return "", err
-	}
-	mappedPort, err := container.MappedPort(ctx, port)
-	if err != nil {
-		return "", err
-	}
-	return net.JoinHostPort(host, mappedPort.Port()), nil
 }

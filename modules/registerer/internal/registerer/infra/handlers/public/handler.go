@@ -72,7 +72,7 @@ func (h *handler) sessionCookie(result app.RegisterResult) http.Cookie {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookie.Secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	}
 	if result.Persistent {
 		cookie.Expires = result.ExpiresAt

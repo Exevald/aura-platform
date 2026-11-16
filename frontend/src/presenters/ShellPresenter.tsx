@@ -4,6 +4,7 @@ import {api, ApiError, type Profile, type Workspace} from '../model/api'
 import {sessionCoordinator} from '../model/session'
 import {ShellView} from '../views/ShellView'
 import {StateView} from '../views/StateView'
+import {isAuraHost, loginURL} from '../model/hosts'
 
 export function ShellPresenter() {
     const navigate = useNavigate()
@@ -28,7 +29,10 @@ export function ShellPresenter() {
             setProfile(currentProfile)
             setFailed(false)
         } catch (error) {
-            if (error instanceof ApiError && error.status === 401) navigate('/login')
+            if (error instanceof ApiError && error.status === 401) {
+                if (isAuraHost() && location.hostname !== 'aura-platform.auth') location.assign(loginURL(location.href))
+                else navigate('/login')
+            }
             else setFailed(true)
         }
     }, [navigate])

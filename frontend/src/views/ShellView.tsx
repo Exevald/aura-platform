@@ -14,8 +14,9 @@ import {
     Users,
     X
 } from 'lucide-react'
-import {Link, NavLink, Outlet} from 'react-router-dom'
+import {NavLink, Outlet} from 'react-router-dom'
 import type {Profile, Workspace} from '../model/api'
+import {isAuraHost, navigationURL} from '../model/hosts'
 
 export type ShellContext = { profile: Profile; setProfile: (profile: Profile) => void }
 
@@ -61,7 +62,7 @@ export function ShellView({
 
     return <div className="shell">
         <header className="mobile-header">
-            <Link className="brand" to="/overview"><span>A</span><span>Aura</span></Link>
+            <a className="brand" href={navigationURL('/overview')}><span>A</span><span>Aura</span></a>
             <button className="icon-button" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'}
                     onClick={() => setMenuOpen(value => !value)}>
                 {menuOpen ? <X size={20}/> : <Menu size={20}/>}
@@ -69,16 +70,21 @@ export function ShellView({
         </header>
         {menuOpen && <button className="nav-backdrop" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)}/>}
         <aside className={menuOpen ? 'open' : ''}>
-            <Link className="brand sidebar-brand" to="/overview"
-                  onClick={() => setMenuOpen(false)}><span>A</span><span>Aura</span></Link>
+            <a className="brand sidebar-brand" href={navigationURL('/overview')}
+                  onClick={() => setMenuOpen(false)}><span>A</span><span>Aura</span></a>
             {workspaces.length > 0 && <select aria-label="Рабочее пространство" value={workspaceID}
                                               onChange={event => onSelectWorkspace?.(event.target.value)}>
                 {workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>}
             <nav aria-label="Основная навигация">
-                {navItems.map(({to, label, icon: Icon}) => <NavLink key={to} to={to} onClick={() => setMenuOpen(false)}>
-                    <Icon size={19}/><span>{label}</span>
-                </NavLink>)}
+                {navItems.map(({to, label, icon: Icon}) => isAuraHost()
+                    ? <a key={to} href={navigationURL(to)} className={location.pathname === to || location.pathname.startsWith(to + '/') ? 'active' : undefined}
+                         onClick={() => setMenuOpen(false)}>
+                        <Icon size={19}/><span>{label}</span>
+                    </a>
+                    : <NavLink key={to} to={to} onClick={() => setMenuOpen(false)}>
+                        <Icon size={19}/><span>{label}</span>
+                    </NavLink>)}
             </nav>
             <div className="sidebar-footer">
                 <button className="theme-toggle"
@@ -87,7 +93,7 @@ export function ShellView({
                         <Sun size={18}/>}<span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span>
                 </button>
                 <div className="aside-user">
-                    <Link className="avatar" to="/profile">{profile.displayName.slice(0, 1).toUpperCase()}</Link>
+                    <a className="avatar" href={navigationURL('/profile')}>{profile.displayName.slice(0, 1).toUpperCase()}</a>
                     <div><strong>{profile.displayName}</strong><small>{profile.email}</small></div>
                     <button className="logout-button" title="Выйти" aria-label="Выйти" onClick={onLogout}><LogOut
                         size={18}/></button>

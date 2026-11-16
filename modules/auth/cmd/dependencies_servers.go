@@ -16,8 +16,8 @@ import (
 	publichandler "auth/internal/auth/infra/handlers/public"
 )
 
-func newHTTPServer(logger *slog.Logger, conf config.Env, svc app.AuthService) (*http.Server, error) {
-	register, err := publichandler.Register(svc, logger, conf.Cookie)
+func newHTTPServer(logger *slog.Logger, conf config.Env, svc app.AuthService, sso *app.SSOService) (*http.Server, error) {
+	register, err := publichandler.Register(svc, sso, logger, conf.Cookie)
 	if err != nil {
 		return nil, err
 	}

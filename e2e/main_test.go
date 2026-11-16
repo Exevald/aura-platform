@@ -36,6 +36,7 @@ const (
 	authModule       = "auth"
 	registererModule = "registerer"
 	rabbitmqName     = "rabbitmq"
+	mysqlName        = "mysql"
 	sessionModule    = "session"
 	userModule       = "user"
 )
@@ -73,7 +74,7 @@ func TestMain(m *testing.M) {
 }
 
 func infrastructureSpecs() []integrationtests.ContainerSpec {
-	result := make([]integrationtests.ContainerSpec, 0, 6)
+	result := make([]integrationtests.ContainerSpec, 0, 2)
 	result = append(result, integrationtests.ContainerSpec{
 		Name: rabbitmqName,
 		Request: testcontainers.ContainerRequest{
@@ -82,23 +83,15 @@ func infrastructureSpecs() []integrationtests.ContainerSpec {
 			WaitingFor: wait.ForLog("Server startup complete").WithStartupTimeout(time.Minute),
 		},
 	})
-	previousMySQL := ""
-	for _, module := range []string{authModule, userModule, accessModule, sessionModule, registererModule} {
-		name := module + "-mysql"
-		var dependencies []string
-		if previousMySQL != "" {
-			dependencies = []string{previousMySQL}
-		}
-		result = append(result, integrationtests.ContainerSpec{
-			Name: name, DependsOn: dependencies,
-			Request: testcontainers.ContainerRequest{
-				Image: "mysql:8.4", ExposedPorts: []string{"3306/tcp"},
-				Env:        map[string]string{"MYSQL_DATABASE": module + "_test", "MYSQL_USER": module, "MYSQL_PASSWORD": databasePassword, "MYSQL_ROOT_PASSWORD": "root-password"},
-				WaitingFor: wait.ForLog("port: 3306  MySQL Community Server").WithStartupTimeout(time.Minute),
-			},
-		})
-		previousMySQL = name
-	}
+	result = append(result, integrationtests.ContainerSpec{
+		Name: mysqlName,
+		Request: testcontainers.ContainerRequest{
+			Image: "mysql:8.4", ExposedPorts: []string{"3306/tcp"},
+			Env:        map[string]string{"MYSQL_ROOT_PASSWORD": "root-password"},
+			Files:      []testcontainers.ContainerFile{{HostFilePath: "docker/mysql/init.sql", ContainerFilePath: "/docker-entrypoint-initdb.d/init.sql", FileMode: 0o644}},
+			WaitingFor: wait.ForLog("port: 3306  MySQL Community Server").WithStartupTimeout(time.Minute),
+		},
+	})
 	return result
 }
 
@@ -106,7 +99,7 @@ func serviceSpecs() []integrationtests.ContainerSpec {
 	var result []integrationtests.ContainerSpec
 	for _, module := range []string{userModule, accessModule, sessionModule} {
 		result = append(result, integrationtests.ContainerSpec{
-			Name: module + "-service", DependsOn: []string{module + "-mysql", rabbitmqName},
+			Name: module + "-service", DependsOn: []string{mysqlName, rabbitmqName},
 			Request: testcontainers.ContainerRequest{Image: "distributed-programming-" + module + ":e2e", Cmd: []string{"service"}, ExposedPorts: []string{"8081/tcp", httpContainerPort}},
 			Configure: func(_ context.Context, testEnv *integrationtests.Environment, request *testcontainers.ContainerRequest) error {
 				request.Env = moduleEnvironment(module, testEnv)
@@ -138,7 +131,7 @@ func serviceSpecs() []integrationtests.ContainerSpec {
 		})
 	}
 	result = append(result, integrationtests.ContainerSpec{
-		Name: "auth-service", DependsOn: []string{"auth-mysql", rabbitmqName, "session-service"},
+		Name: "auth-service", DependsOn: []string{mysqlName, rabbitmqName, "session-service"},
 		Request: testcontainers.ContainerRequest{Image: "distributed-programming-auth:e2e", Cmd: []string{"service"}, ExposedPorts: []string{"8081/tcp", httpContainerPort}},
 		Configure: func(_ context.Context, testEnv *integrationtests.Environment, request *testcontainers.ContainerRequest) error {
 			request.Env = moduleEnvironment(authModule, testEnv)
@@ -165,7 +158,7 @@ func serviceSpecs() []integrationtests.ContainerSpec {
 	})
 	result = append(result, integrationtests.ContainerSpec{
 		Name:      "registerer-service",
-		DependsOn: []string{"registerer-mysql", rabbitmqName, "auth-service", "user-service", "access-service", "session-service", "auth-proxy", "user-proxy", "access-proxy", "session-proxy"},
+		DependsOn: []string{mysqlName, rabbitmqName, "auth-service", "user-service", "access-service", "session-service", "auth-proxy", "user-proxy", "access-proxy", "session-proxy"},
 		Request: testcontainers.ContainerRequest{
 			Image: "alpine:3.22", Entrypoint: []string{"/registerer-supervisor.sh"}, ExposedPorts: []string{httpContainerPort},
 			Files: []testcontainers.ContainerFile{
@@ -194,7 +187,7 @@ func serviceSpecs() []integrationtests.ContainerSpec {
 
 func moduleEnvironment(module string, testEnv *integrationtests.Environment) map[string]string {
 	prefix := map[string]string{authModule: "AUTH_", registererModule: "REGISTERER_", userModule: "USER_", accessModule: "ACCESS_", sessionModule: "SESSION_"}[module]
-	databaseAddress, _ := testEnv.NetworkEndpoint(module+"-mysql", "3306/tcp")
+	databaseAddress, _ := testEnv.NetworkEndpoint(mysqlName, "3306/tcp")
 	brokerAddress, _ := testEnv.NetworkEndpoint(rabbitmqName, "5672/tcp")
 	return map[string]string{
 		prefix + "MYSQL_ADDRESS": databaseAddress, prefix + "MYSQL_DATABASE": module + "_test", prefix + "MYSQL_USER": module, prefix + "MYSQL_PASSWORD": databasePassword,
@@ -218,7 +211,7 @@ func setupClients(ctx context.Context, testEnv *integrationtests.Environment) er
 	}
 	deps.dbs = make(map[string]*sql.DB)
 	for _, module := range []string{authModule, userModule, accessModule, sessionModule, registererModule} {
-		endpoint, endpointErr := testEnv.HostEndpoint(ctx, module+"-mysql", "3306/tcp")
+		endpoint, endpointErr := testEnv.HostEndpoint(ctx, mysqlName, "3306/tcp")
 		if endpointErr != nil {
 			return endpointErr
 		}

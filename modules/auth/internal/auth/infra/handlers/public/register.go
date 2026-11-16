@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"uuid"
 
 	"github.com/distributed-programming-2026/go-sdk/pkg/logging"
@@ -25,7 +26,7 @@ type validationError struct {
 	Fields  map[string]string `json:"fields,omitempty"`
 }
 
-func Register(svc app.AuthService, logger *slog.Logger, cookie config.Cookie) (runtimehttp.RegisterFunc, error) {
+func Register(svc app.AuthService, sso *app.SSOService, logger *slog.Logger, cookie config.Cookie) (runtimehttp.RegisterFunc, error) {
 	spec, err := publicapi.GetSwagger()
 	if err != nil {
 		return nil, err
@@ -53,6 +54,8 @@ func Register(svc app.AuthService, logger *slog.Logger, cookie config.Cookie) (r
 						return
 					}
 					ctx := r.Context()
+					host, _, _ := strings.Cut(r.Host, ":")
+					ctx = context.WithValue(ctx, hostContextKey{}, host)
 					if value, cookieErr := r.Cookie(cookie.Name); cookieErr == nil {
 						if id, parseErr := uuid.Parse(value.Value); parseErr == nil {
 							ctx = context.WithValue(ctx, sessionContextKey{}, id)
@@ -62,7 +65,7 @@ func Register(svc app.AuthService, logger *slog.Logger, cookie config.Cookie) (r
 				})
 			})
 			strict := publicapi.NewStrictHandlerWithOptions(
-				NewHandler(svc, cookie),
+				NewHandler(svc, sso, cookie),
 				nil,
 				publicapi.StrictHTTPServerOptions{
 					ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {

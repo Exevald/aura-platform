@@ -5,8 +5,8 @@ services:
       context: ./modules/gateway
       dockerfile: Dockerfile
     ports:
-      - '8000:8000'
-      - '15000:15000'
+      - '${LOCAL_WEB_PORT:-80}:8000'
+      - '${LOCAL_GATEWAY_HEALTH_PORT:-15000}:15000'
     volumes:
       - ./modules/gateway/config:/config:ro
     depends_on:

@@ -26,7 +26,7 @@ func (v *version1791619310) Description() string {
 }
 
 func (v *version1791619310) Up(ctx context.Context) error {
-	const sqlCreateCredentialTableQuery = `
+	const schema = `
 		CREATE TABLE IF NOT EXISTS credential (
 		    id BINARY(16) NOT NULL PRIMARY KEY,
 		    user_id BINARY(16) NOT NULL,
@@ -41,6 +41,6 @@ func (v *version1791619310) Up(ctx context.Context) error {
 		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
 	`
 
-	_, err := v.client.ExecContext(ctx, "create-credential-table", sqlCreateCredentialTableQuery)
+	_, err := v.client.ExecContext(ctx, "create-credential-table", schema)
 	return err
 }

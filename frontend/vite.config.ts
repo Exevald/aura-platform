@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:8000',
-      '/s/': 'http://localhost:8000',
+      '/api': process.env.AURA_GATEWAY_URL ?? 'http://aura-platform.home',
+      '/s/': process.env.AURA_GATEWAY_URL ?? 'http://aura-platform.home',
     },
   },
   test: { environment: 'jsdom', setupFiles: './src/test/setup.ts' },

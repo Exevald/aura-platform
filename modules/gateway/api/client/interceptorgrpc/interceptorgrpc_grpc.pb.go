@@ -71,10 +71,8 @@ type UnimplementedInterceptorServer struct{}
 func (UnimplementedInterceptorServer) Intercept(context.Context, *InterceptRequest) (*InterceptResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Intercept not implemented")
 }
-
 func (UnimplementedInterceptorServer) mustEmbedUnimplementedInterceptorServer() {}
-
-func (UnimplementedInterceptorServer) testEmbeddedByValue() {}
+func (UnimplementedInterceptorServer) testEmbeddedByValue()                     {}
 
 // UnsafeInterceptorServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to InterceptorServer will

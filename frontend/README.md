@@ -17,8 +17,8 @@ between tabs of the same origin with `BroadcastChannel`. When a tab becomes
 visible or receives focus, it calls `/api/bff/v1/me` again, which also picks up
 login and logout performed in another product on a sibling subdomain.
 
-For production products hosted on sibling subdomains, configure the auth service
-with their shared parent domain in `AUTH_COOKIE_DOMAIN` and use HTTPS everywhere.
-For local development leave the domain empty and consistently use `localhost`
-(do not mix it with `127.0.0.1`). A session created with `rememberMe: true`
-survives a browser restart; without it the browser cookie is session-only.
+The local product addresses (`aura-platform.documents`, `aura-platform.calendar`,
+and others) use a central login at `aura-platform.auth`. The auth service issues
+a one-time code, then the destination receives its own HttpOnly cookie. Local
+HTTP uses host-only cookies with `AUTH_COOKIE_DOMAIN` empty. Production deployments
+need HTTPS, `AUTH_COOKIE_SECURE=true`, and a deployment-specific SSO host allowlist.

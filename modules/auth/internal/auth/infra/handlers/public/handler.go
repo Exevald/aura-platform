@@ -16,14 +16,48 @@ import (
 )
 
 type sessionContextKey struct{}
+type hostContextKey struct{}
+
+const unavailableMessage = "authentication unavailable"
 
 type handler struct {
 	svc    app.AuthService
+	sso    *app.SSOService
 	cookie config.Cookie
 }
 
-func NewHandler(svc app.AuthService, cookie config.Cookie) publicapi.StrictServerInterface {
-	return &handler{svc: svc, cookie: cookie}
+func NewHandler(svc app.AuthService, sso *app.SSOService, cookie config.Cookie) publicapi.StrictServerInterface {
+	return &handler{svc: svc, sso: sso, cookie: cookie}
+}
+
+func (h *handler) IssueSsoTicket(ctx context.Context, req publicapi.IssueSsoTicketRequestObject) (publicapi.IssueSsoTicketResponseObject, error) {
+	if requestHost(ctx) != "aura-platform.auth" {
+		return publicapi.IssueSsoTicket400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: "invalid origin"}}, nil
+	}
+	code, err := h.sso.Issue(ctx, sessionID(ctx), req.Body.TargetHost)
+	switch {
+	case err == nil:
+		return publicapi.IssueSsoTicket200JSONResponse{Code: code}, nil
+	case errors.Is(err, app.ErrInvalidSSOTarget):
+		return publicapi.IssueSsoTicket400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: "invalid target"}}, nil
+	case errors.Is(err, app.ErrSessionNotFound):
+		return publicapi.IssueSsoTicket401JSONResponse{UnauthorizedJSONResponse: publicapi.UnauthorizedJSONResponse{Message: "authentication required"}}, nil
+	default:
+		return publicapi.IssueSsoTicket503JSONResponse{UnavailableJSONResponse: publicapi.UnavailableJSONResponse{Message: unavailableMessage}}, nil
+	}
+}
+
+func (h *handler) ConsumeSsoTicket(ctx context.Context, req publicapi.ConsumeSsoTicketRequestObject) (publicapi.ConsumeSsoTicketResponseObject, error) {
+	result, err := h.sso.Consume(ctx, req.Body.Code, requestHost(ctx))
+	switch {
+	case err == nil:
+		cookie := h.sessionCookie(result)
+		return publicapi.ConsumeSsoTicket204Response{Headers: publicapi.ConsumeSsoTicket204ResponseHeaders{SetCookie: cookie.String()}}, nil
+	case errors.Is(err, app.ErrInvalidSSOTicket), errors.Is(err, app.ErrInvalidSSOTarget):
+		return publicapi.ConsumeSsoTicket400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: "invalid ticket"}}, nil
+	default:
+		return publicapi.ConsumeSsoTicket503JSONResponse{UnavailableJSONResponse: publicapi.UnavailableJSONResponse{Message: unavailableMessage}}, nil
+	}
 }
 
 func (h *handler) Login(ctx context.Context, req publicapi.LoginRequestObject) (publicapi.LoginResponseObject, error) {
@@ -35,7 +69,7 @@ func (h *handler) Login(ctx context.Context, req publicapi.LoginRequestObject) (
 		if errors.Is(err, domain.ErrInvalidCredential) {
 			return publicapi.Login400JSONResponse{Message: err.Error()}, nil
 		}
-		return publicapi.Login503JSONResponse{Message: "authentication unavailable"}, nil
+		return publicapi.Login503JSONResponse{Message: unavailableMessage}, nil
 	}
 	return publicapi.Login200JSONResponse{
 		Body:    authResult(result),
@@ -87,7 +121,7 @@ func (h *handler) sessionCookie(result app.AuthResult) http.Cookie {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookie.Secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	}
 	if result.Persistent {
 		cookie.Expires = result.ExpiresAt
@@ -104,7 +138,7 @@ func (h *handler) expiredCookie() http.Cookie {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.cookie.Secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 		Expires:  time.Unix(1, 0).UTC(),
 	}
@@ -129,6 +163,11 @@ func unauthorizedPasswordResponse() publicapi.ChangePasswordResponseObject {
 func sessionID(ctx context.Context) uuid.UUID {
 	id, _ := ctx.Value(sessionContextKey{}).(uuid.UUID)
 	return id
+}
+
+func requestHost(ctx context.Context) string {
+	host, _ := ctx.Value(hostContextKey{}).(string)
+	return host
 }
 
 func cookieString(cookie http.Cookie) string {
