@@ -57,6 +57,13 @@ routes:
   - pattern: '^/.*$'
     directResponse: {status: 404, inlineString: missing}
 `, upstream.URL))
+
+	verifyRewrittenRoute(t, s)
+	verifyFallbackRoute(t, s)
+}
+
+func verifyRewrittenRoute(t *testing.T, s *httptest.Server) {
+	t.Helper()
 	status, h, body := request(t, s, "POST", "/old/42?x=1&x=2", "binary\x00body", http.Header{multiHeader: []string{"one", "two"}})
 	require.EqualValues(t, 201, status,
 		"unexpected response %d %v %q", status, h, body)
@@ -66,8 +73,11 @@ routes:
 		"unexpected response %d %v %q", status, h, body)
 	require.EqualValues(t, 2, len(h.Values("Set-Cookie")),
 		"unexpected response %d %v %q", status, h, body)
+}
 
-	status, _, body = request(t, s, "GET", "/missing", "", nil)
+func verifyFallbackRoute(t *testing.T, s *httptest.Server) {
+	t.Helper()
+	status, _, body := request(t, s, "GET", "/missing", "", nil)
 	require.EqualValues(t, 404, status,
 		"fallback failed")
 	require.Equal(t, "missing", body,

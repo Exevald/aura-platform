@@ -29,17 +29,8 @@ func TestExecutableStartsWithYAMLAndStopsOnSignal(t *testing.T) {
 	conf := filepath.Join(dir, "gateway.yaml")
 	require.NoError(t, os.WriteFile(conf, []byte("kind: gateway/v1\ngatewayHealthHost: 0\n---\nkind: gateway/service/v1\nname: local\nroutes: [{pattern: '^/', directResponse: {status: 200, inlineString: running}}]\n"), 0o600))
 
-	// Reserve addresses briefly; the executable owns the final binds.
-	reserve := func() string {
-		l, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-
-		addr := l.Addr().String()
-		_ = l.Close()
-		return addr
-	}
-	proxy := reserve()
-	health := reserve()
+	proxy := reserveTCPAddress(t)
+	health := reserveTCPAddress(t)
 	cmd := exec.Command(binary, "--config", conf)
 	cmd.Env = append(os.Environ(), "GATEWAY_HTTP_ADDRESS="+proxy, "GATEWAY_HEALTH_ADDRESS="+health)
 	var logs bytes.Buffer
@@ -50,6 +41,22 @@ func TestExecutableStartsWithYAMLAndStopsOnSignal(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	verifyExecutableServing(t, proxy, health)
+	verifyExecutableStops(t, cmd, done, &logs)
+}
+
+func reserveTCPAddress(t *testing.T) string {
+	t.Helper()
+	// Reserve briefly; the executable owns the final bind.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+	return address
+}
+
+func verifyExecutableServing(t *testing.T, proxy, health string) {
+	t.Helper()
 	client := &http.Client{Timeout: time.Second}
 	waitStatus(t, client, "http://"+health+"/readyz", 204)
 	response, err := client.Get("http://" + proxy + "/test")
@@ -61,7 +68,11 @@ func TestExecutableStartsWithYAMLAndStopsOnSignal(t *testing.T) {
 		"executable did not proxy/configure correctly")
 	require.Equal(t, "running", string(body),
 		"executable did not proxy/configure correctly")
-	err = cmd.Process.Signal(syscall.SIGTERM)
+}
+
+func verifyExecutableStops(t *testing.T, cmd *exec.Cmd, done <-chan error, logs *bytes.Buffer) {
+	t.Helper()
+	err := cmd.Process.Signal(syscall.SIGTERM)
 	require.NoError(t, err)
 
 	select {

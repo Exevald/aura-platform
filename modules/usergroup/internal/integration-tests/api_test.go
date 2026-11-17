@@ -30,19 +30,35 @@ func TestWorkspaceScopedGroupLifecycle(t *testing.T) {
 		return response
 	}
 
-	created := request(http.MethodPost, "/api/usergroups/v1/groups", `{"name":"Engineering"}`, workspaceID)
+	group := createTestGroup(t, request, workspaceID)
+	verifyGroupListing(t, request, workspaceID, group.ID)
+	verifyGroupWorkspaceIsolation(t, request, group.ID)
+	verifyGroupDeletion(t, request, workspaceID, group.ID)
+}
+
+type groupRequest func(method, path, body string, workspace uuid.UUID) *http.Response
+
+type testGroup struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceID"`
+	Name        string    `json:"name"`
+}
+
+func createTestGroup(t *testing.T, request groupRequest, workspace uuid.UUID) testGroup {
+	t.Helper()
+	created := request(http.MethodPost, "/api/usergroups/v1/groups", `{"name":"Engineering"}`, workspace)
 	defer created.Body.Close()
 	require.Equal(t, http.StatusCreated, created.StatusCode)
-	var group struct {
-		ID          uuid.UUID `json:"id"`
-		WorkspaceID uuid.UUID `json:"workspaceID"`
-		Name        string    `json:"name"`
-	}
+	var group testGroup
 	require.NoError(t, json.NewDecoder(created.Body).Decode(&group))
 	require.NotEqual(t, uuid.Nil, group.ID)
-	require.Equal(t, workspaceID, group.WorkspaceID)
+	require.Equal(t, workspace, group.WorkspaceID)
 	require.Equal(t, "Engineering", group.Name)
+	return group
+}
 
+func verifyGroupListing(t *testing.T, request groupRequest, workspaceID, groupID uuid.UUID) {
+	t.Helper()
 	listed := request(http.MethodGet, "/api/usergroups/v1/groups", "", workspaceID)
 	defer listed.Body.Close()
 	require.Equal(t, http.StatusOK, listed.StatusCode)
@@ -51,15 +67,22 @@ func TestWorkspaceScopedGroupLifecycle(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(listed.Body).Decode(&groups))
 	require.Len(t, groups, 1)
-	require.Equal(t, group.ID, groups[0].ID)
+	require.Equal(t, groupID, groups[0].ID)
+}
 
-	otherWorkspace := request(http.MethodGet, fmt.Sprintf("/api/usergroups/v1/groups/%s", group.ID), "", uuid.New())
+func verifyGroupWorkspaceIsolation(t *testing.T, request groupRequest, groupID uuid.UUID) {
+	t.Helper()
+	otherWorkspace := request(http.MethodGet, fmt.Sprintf("/api/usergroups/v1/groups/%s", groupID), "", uuid.New())
 	defer otherWorkspace.Body.Close()
 	require.Equal(t, http.StatusNotFound, otherWorkspace.StatusCode)
-	deleted := request(http.MethodDelete, fmt.Sprintf("/api/usergroups/v1/groups/%s", group.ID), "", workspaceID)
+}
+
+func verifyGroupDeletion(t *testing.T, request groupRequest, workspaceID, groupID uuid.UUID) {
+	t.Helper()
+	deleted := request(http.MethodDelete, fmt.Sprintf("/api/usergroups/v1/groups/%s", groupID), "", workspaceID)
 	defer deleted.Body.Close()
 	require.Equal(t, http.StatusNoContent, deleted.StatusCode)
-	missing := request(http.MethodGet, fmt.Sprintf("/api/usergroups/v1/groups/%s", group.ID), "", workspaceID)
+	missing := request(http.MethodGet, fmt.Sprintf("/api/usergroups/v1/groups/%s", groupID), "", workspaceID)
 	defer missing.Body.Close()
 	require.Equal(t, http.StatusNotFound, missing.StatusCode)
 }

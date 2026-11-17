@@ -80,6 +80,10 @@ func (e *environment) prepare(ctx context.Context) error {
 		return err
 	}
 	e.conf.GRPC.Address, err = integrationtest.Address(ctx, service, "8081/tcp")
+	if err != nil {
+		return err
+	}
+	_, err = e.startApplication(ctx, "message-handler")
 	return err
 }
 

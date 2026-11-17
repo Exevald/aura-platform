@@ -20,15 +20,19 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	accessapi "access/api/server/internalapi"
+	accesspublicapi "access/api/server/publicapi"
 	authapi "auth/api/server/internalapi"
 	registererapi "registerer/api/server/publicapi"
 	sessionapi "session/api/server/internalapi"
 	userapi "user/api/server/internalapi"
+	usergroupapi "usergroup/api/server/publicapi"
 )
 
 const (
 	databasePassword  = "integration:password@local"
+	grpcContainerPort = "8081/tcp"
 	httpContainerPort = "8082/tcp"
+	serviceCommand    = "service"
 )
 
 const (
@@ -39,6 +43,7 @@ const (
 	mysqlName        = "mysql"
 	sessionModule    = "session"
 	userModule       = "user"
+	usergroupModule  = "usergroup"
 )
 
 var (
@@ -51,9 +56,12 @@ var (
 	accessProxy        = &accessRegistrationProxy{prepareGate: prepareFanOutGate, commitGate: commitFanOutGate, rollbackGate: rollbackFanOutGate}
 	sessions           = &sessionProxy{}
 	deps               struct {
-		client *registererapi.ClientWithResponses
-		dbs    map[string]*sql.DB
-		events <-chan rabbit.Delivery
+		client     *registererapi.ClientWithResponses
+		access     *accesspublicapi.ClientWithResponses
+		groups     *usergroupapi.ClientWithResponses
+		accessGRPC accessapi.ModuleAccessServiceClient
+		dbs        map[string]*sql.DB
+		events     <-chan rabbit.Delivery
 	}
 	registererServiceContainer testcontainers.Container
 )
@@ -98,16 +106,23 @@ func infrastructureSpecs() []integrationtests.ContainerSpec {
 func serviceSpecs() []integrationtests.ContainerSpec {
 	var result []integrationtests.ContainerSpec
 	for _, module := range []string{userModule, accessModule, sessionModule} {
+		dependsOn := []string{mysqlName, rabbitmqName}
+		if module == accessModule {
+			dependsOn = append(dependsOn, "usergroup-service")
+		}
 		result = append(result, integrationtests.ContainerSpec{
-			Name: module + "-service", DependsOn: []string{mysqlName, rabbitmqName},
-			Request: testcontainers.ContainerRequest{Image: "distributed-programming-" + module + ":e2e", Cmd: []string{"service"}, ExposedPorts: []string{"8081/tcp", httpContainerPort}},
+			Name: module + "-service", DependsOn: dependsOn,
+			Request: testcontainers.ContainerRequest{Image: "distributed-programming-" + module + ":e2e", Cmd: []string{serviceCommand}, ExposedPorts: []string{grpcContainerPort, httpContainerPort}},
 			Configure: func(_ context.Context, testEnv *integrationtests.Environment, request *testcontainers.ContainerRequest) error {
 				request.Env = moduleEnvironment(module, testEnv)
+				if module == accessModule {
+					request.Env["ACCESS_DEPENDENCIES_USERGROUP_ADDRESS"], _ = testEnv.NetworkEndpoint("usergroup-service", grpcContainerPort)
+				}
 				request.WaitingFor = healthWait()
 				return nil
 			},
 			AfterReady: func(ctx context.Context, testEnv *integrationtests.Environment, _ testcontainers.Container) error {
-				address, err := testEnv.HostEndpoint(ctx, module+"-service", "8081/tcp")
+				address, err := testEnv.HostEndpoint(ctx, module+"-service", grpcContainerPort)
 				if err != nil {
 					return err
 				}
@@ -122,7 +137,8 @@ func serviceSpecs() []integrationtests.ContainerSpec {
 				case userModule:
 					userProxy.setClient(userapi.NewUserServiceClient(connection))
 				case accessModule:
-					accessProxy.setClient(accessapi.NewModuleAccessServiceClient(connection))
+					deps.accessGRPC = accessapi.NewModuleAccessServiceClient(connection)
+					accessProxy.setClient(deps.accessGRPC)
 				default:
 					sessions.setClient(sessionapi.NewSessionServiceClient(connection))
 				}
@@ -131,17 +147,36 @@ func serviceSpecs() []integrationtests.ContainerSpec {
 		})
 	}
 	result = append(result, integrationtests.ContainerSpec{
+		Name: "usergroup-service", DependsOn: []string{mysqlName, rabbitmqName, "user-service"},
+		Request: testcontainers.ContainerRequest{Image: "distributed-programming-usergroup:e2e", Cmd: []string{serviceCommand}, ExposedPorts: []string{grpcContainerPort, httpContainerPort}},
+		Configure: func(_ context.Context, testEnv *integrationtests.Environment, request *testcontainers.ContainerRequest) error {
+			request.Env = moduleEnvironment(usergroupModule, testEnv)
+			request.Env["USERGROUP_DEPENDENCIES_USER_ADDRESS"], _ = testEnv.NetworkEndpoint("user-service", grpcContainerPort)
+			request.WaitingFor = healthWait()
+			return nil
+		},
+	})
+	result = append(result, integrationtests.ContainerSpec{
+		Name: "access-message-handler", DependsOn: []string{mysqlName, rabbitmqName, "access-service"},
+		Request: testcontainers.ContainerRequest{Image: "distributed-programming-access:e2e", Cmd: []string{"message-handler"}, ExposedPorts: []string{httpContainerPort}},
+		Configure: func(_ context.Context, testEnv *integrationtests.Environment, request *testcontainers.ContainerRequest) error {
+			request.Env = moduleEnvironment(accessModule, testEnv)
+			request.WaitingFor = healthWait()
+			return nil
+		},
+	})
+	result = append(result, integrationtests.ContainerSpec{
 		Name: "auth-service", DependsOn: []string{mysqlName, rabbitmqName, "session-service"},
-		Request: testcontainers.ContainerRequest{Image: "distributed-programming-auth:e2e", Cmd: []string{"service"}, ExposedPorts: []string{"8081/tcp", httpContainerPort}},
+		Request: testcontainers.ContainerRequest{Image: "distributed-programming-auth:e2e", Cmd: []string{serviceCommand}, ExposedPorts: []string{grpcContainerPort, httpContainerPort}},
 		Configure: func(_ context.Context, testEnv *integrationtests.Environment, request *testcontainers.ContainerRequest) error {
 			request.Env = moduleEnvironment(authModule, testEnv)
-			request.Env["AUTH_DEPENDENCIES_SESSION_ADDRESS"], _ = testEnv.NetworkEndpoint("session-service", "8081/tcp")
+			request.Env["AUTH_DEPENDENCIES_SESSION_ADDRESS"], _ = testEnv.NetworkEndpoint("session-service", grpcContainerPort)
 			request.Env["AUTH_COOKIE_SECURE"] = "false"
 			request.WaitingFor = healthWait()
 			return nil
 		},
 		AfterReady: func(ctx context.Context, testEnv *integrationtests.Environment, _ testcontainers.Container) error {
-			address, err := testEnv.HostEndpoint(ctx, "auth-service", "8081/tcp")
+			address, err := testEnv.HostEndpoint(ctx, "auth-service", grpcContainerPort)
 			if err != nil {
 				return err
 			}
@@ -186,7 +221,7 @@ func serviceSpecs() []integrationtests.ContainerSpec {
 }
 
 func moduleEnvironment(module string, testEnv *integrationtests.Environment) map[string]string {
-	prefix := map[string]string{authModule: "AUTH_", registererModule: "REGISTERER_", userModule: "USER_", accessModule: "ACCESS_", sessionModule: "SESSION_"}[module]
+	prefix := map[string]string{authModule: "AUTH_", registererModule: "REGISTERER_", userModule: "USER_", accessModule: "ACCESS_", sessionModule: "SESSION_", usergroupModule: "USERGROUP_"}[module]
 	databaseAddress, _ := testEnv.NetworkEndpoint(mysqlName, "3306/tcp")
 	brokerAddress, _ := testEnv.NetworkEndpoint(rabbitmqName, "5672/tcp")
 	return map[string]string{
@@ -209,8 +244,24 @@ func setupClients(ctx context.Context, testEnv *integrationtests.Environment) er
 	if err != nil {
 		return err
 	}
+	accessAddress, err := testEnv.HostEndpoint(ctx, "access-service", httpContainerPort)
+	if err != nil {
+		return err
+	}
+	deps.access, err = accesspublicapi.NewClientWithResponses("http://" + accessAddress)
+	if err != nil {
+		return err
+	}
+	groupAddress, err := testEnv.HostEndpoint(ctx, "usergroup-service", httpContainerPort)
+	if err != nil {
+		return err
+	}
+	deps.groups, err = usergroupapi.NewClientWithResponses("http://" + groupAddress)
+	if err != nil {
+		return err
+	}
 	deps.dbs = make(map[string]*sql.DB)
-	for _, module := range []string{authModule, userModule, accessModule, sessionModule, registererModule} {
+	for _, module := range []string{authModule, userModule, accessModule, sessionModule, registererModule, usergroupModule} {
 		endpoint, endpointErr := testEnv.HostEndpoint(ctx, mysqlName, "3306/tcp")
 		if endpointErr != nil {
 			return endpointErr

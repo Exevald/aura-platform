@@ -55,6 +55,14 @@ routes:
 	ctx, cancel := context.WithTimeout(metadata.NewOutgoingContext(context.Background(), metadata.Pairs("x-test", "metadata")), 3*time.Second)
 	defer cancel()
 	client := pb.NewInterceptorClient(conn)
+
+	verifyGRPCUnaryAndTrailer(ctx, t, client)
+	verifyGRPCStatus(ctx, t, client)
+	verifyGRPCStreamAndTrailer(ctx, t, conn)
+}
+
+func verifyGRPCUnaryAndTrailer(ctx context.Context, t *testing.T, client pb.InterceptorClient) {
+	t.Helper()
 	var trailer metadata.MD
 	response, err := client.Intercept(ctx, &pb.InterceptRequest{Context: &pb.ProcessingContext{RequestId: "echo"}}, grpc.Trailer(&trailer))
 	require.NoError(t, err)
@@ -62,11 +70,17 @@ routes:
 		"unary response or trailers lost")
 	require.Equal(t, "unary", trailer.Get("x-trailer")[0],
 		"unary response or trailers lost")
+}
 
-	_, err = client.Intercept(ctx, &pb.InterceptRequest{Context: &pb.ProcessingContext{RequestId: "deny"}})
+func verifyGRPCStatus(ctx context.Context, t *testing.T, client pb.InterceptorClient) {
+	t.Helper()
+	_, err := client.Intercept(ctx, &pb.InterceptRequest{Context: &pb.ProcessingContext{RequestId: "deny"}})
 	require.Equal(t, codes.PermissionDenied, status.Code(err),
 		"gRPC status lost %v", err)
+}
 
+func verifyGRPCStreamAndTrailer(ctx context.Context, t *testing.T, conn *grpc.ClientConn) {
+	t.Helper()
 	stream, err := conn.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true, ClientStreams: true}, "/test.Echo/Chat")
 	require.NoError(t, err)
 

@@ -20,6 +20,14 @@ import (
 func TestSSOTicketIsBoundToOneProductAndCannotBeReplayed(t *testing.T) {
 	login := "sso-" + uuid.New().String()
 	password := "correct horse battery staple"
+	registerSSOUser(t, login, password)
+	httpClient := newSSOHTTPClient(t)
+
+	verifySSOTicketConsumption(t, httpClient, login, password)
+}
+
+func registerSSOUser(t *testing.T, login, password string) {
+	t.Helper()
 	connection, err := grpc.NewClient(testEnv.conf.GRPC.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, connection.Close()) })
@@ -32,16 +40,23 @@ func TestSSOTicketIsBoundToOneProductAndCannotBeReplayed(t *testing.T) {
 	require.NotEmpty(t, prepared.GetCredentialId())
 	_, err = participant.CommitCredentialRegistration(t.Context(), &authinternalapi.RegistrationTransactionRequest{TransactionId: transactionID})
 	require.NoError(t, err)
+}
 
+func newSSOHTTPClient(t *testing.T) *http.Client {
+	t.Helper()
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
-	httpClient := &http.Client{
+	return &http.Client{
 		Timeout: 10 * time.Second,
 		Jar:     jar,
 		Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return (&net.Dialer{}).DialContext(ctx, "tcp", testEnv.conf.HTTP.Address)
 		}},
 	}
+}
+
+func verifySSOTicketConsumption(t *testing.T, httpClient *http.Client, login, password string) {
+	t.Helper()
 	clientForHost := func(host string) *publicapi.ClientWithResponses {
 		t.Helper()
 		client, clientErr := publicapi.NewClientWithResponses("http://"+host, publicapi.WithHTTPClient(httpClient))

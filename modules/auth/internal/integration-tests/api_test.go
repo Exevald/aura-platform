@@ -18,9 +18,7 @@ import (
 )
 
 func TestCredentialParticipantLoginLogoutAndPasswordChange(t *testing.T) {
-	const (
-		login = "ada"
-	)
+	const login = "ada"
 	deliveries := subscribeDomainEvents(t)
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
@@ -36,8 +34,17 @@ func TestCredentialParticipantLoginLogoutAndPasswordChange(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, connection.Close()) })
 	participant := authinternalapi.NewAuthServiceClient(connection)
+
+	verifyCredentialRegistration(t, participant, login, password)
+	verifyLogin(t, client, login, password)
+	verifyPasswordChange(t, client, login, password, nextPassword)
+	requireEventTypes(t, deliveries, "UserLoggedIn", "PasswordChanged", "SessionCreated", "SessionRevoked")
+}
+
+func verifyCredentialRegistration(t *testing.T, participant authinternalapi.AuthServiceClient, login, password string) {
+	t.Helper()
 	userID := uuid.New()
-	_, err = participant.PrepareCredentialRegistration(t.Context(), &authinternalapi.PrepareCredentialRegistrationRequest{
+	_, err := participant.PrepareCredentialRegistration(t.Context(), &authinternalapi.PrepareCredentialRegistrationRequest{
 		TransactionId: uuid.New().String(), UserId: userID.String(), Login: "short-password", Password: "1234567",
 	})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
@@ -66,7 +73,10 @@ func TestCredentialParticipantLoginLogoutAndPasswordChange(t *testing.T) {
 		TransactionId: uuid.New().String(), UserId: uuid.New().String(), Login: login, Password: password,
 	})
 	require.Equal(t, codes.AlreadyExists, status.Code(err))
+}
 
+func verifyLogin(t *testing.T, client *publicapi.ClientWithResponses, login, password string) {
+	t.Helper()
 	loggedOut, err := client.LogoutWithResponse(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNoContent, loggedOut.StatusCode())
@@ -86,7 +96,10 @@ func TestCredentialParticipantLoginLogoutAndPasswordChange(t *testing.T) {
 	require.WithinDuration(t, time.Now().Add(30*24*time.Hour), *loggedIn.JSON200.ExpiresAt, time.Minute)
 	require.Len(t, loggedIn.HTTPResponse.Cookies(), 1)
 	require.Greater(t, loggedIn.HTTPResponse.Cookies()[0].MaxAge, 29*24*60*60)
+}
 
+func verifyPasswordChange(t *testing.T, client *publicapi.ClientWithResponses, login, password, nextPassword string) {
+	t.Helper()
 	failedChange, err := client.ChangePasswordWithResponse(t.Context(), publicapi.ChangePasswordJSONRequestBody{
 		CurrentPassword: "wrong password",
 		NewPassword:     nextPassword,
@@ -114,10 +127,4 @@ func TestCredentialParticipantLoginLogoutAndPasswordChange(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, newPassword.StatusCode())
-	requireEventTypes(t, deliveries,
-		"UserLoggedIn",
-		"PasswordChanged",
-		"SessionCreated",
-		"SessionRevoked",
-	)
 }

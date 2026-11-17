@@ -18,6 +18,14 @@ import (
 func TestUploadDownloadDelete(t *testing.T) {
 	user, workspace := uuid.New(), uuid.New()
 	payload := []byte("attachment contents")
+	file := uploadTestFile(t, user, workspace, payload)
+
+	verifyDownloadedFile(t, user, workspace, file, payload)
+	deleteTestFile(t, user, workspace, file)
+}
+
+func uploadTestFile(t *testing.T, user, workspace uuid.UUID, payload []byte) api.File {
+	t.Helper()
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	part, e := writer.CreateFormFile("file", "notes.txt")
@@ -42,6 +50,11 @@ func TestUploadDownloadDelete(t *testing.T) {
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 	var file api.File
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&file))
+	return file
+}
+
+func verifyDownloadedFile(t *testing.T, user, workspace uuid.UUID, file api.File, payload []byte) {
+	t.Helper()
 	download, e := http.NewRequestWithContext(
 		t.Context(),
 		http.MethodGet,
@@ -57,6 +70,10 @@ func TestUploadDownloadDelete(t *testing.T) {
 	data, _ := io.ReadAll(downloadResponse.Body)
 	_ = downloadResponse.Body.Close()
 	require.Equal(t, payload, data)
+}
+
+func deleteTestFile(t *testing.T, user, workspace uuid.UUID, file api.File) {
+	t.Helper()
 	client, e := api.NewClientWithResponses("http://" + testEnv.conf.HTTP.Address)
 	require.NoError(t, e)
 	deleted, e := client.DeleteFileWithResponse(

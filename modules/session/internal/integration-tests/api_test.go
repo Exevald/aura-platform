@@ -26,7 +26,14 @@ func TestSessionLifecycle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	userID := uuid.New()
+	regularID, persistentID := createTestSessions(ctx, t, client, userID)
 
+	verifyPersistentSession(ctx, t, client, userID, persistentID)
+	verifySessionRevocation(ctx, t, client, userID, regularID, persistentID)
+}
+
+func createTestSessions(ctx context.Context, t *testing.T, client sessioninternalapi.SessionServiceClient, userID uuid.UUID) (regularID, persistentID string) {
+	t.Helper()
 	regular, err := client.CreateSession(ctx, &sessioninternalapi.CreateSessionRequest{
 		UserId: userID.String(),
 	})
@@ -38,25 +45,32 @@ func TestSessionLifecycle(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.WithinDuration(t, time.Now().Add(30*24*time.Hour), persistent.GetExpiresAt().AsTime(), time.Minute)
+	return regular.GetSessionId(), persistent.GetSessionId()
+}
 
+func verifyPersistentSession(ctx context.Context, t *testing.T, client sessioninternalapi.SessionServiceClient, userID uuid.UUID, persistentID string) {
+	t.Helper()
 	validated, err := client.ValidateSession(
 		ctx,
-		&sessioninternalapi.ValidateSessionRequest{SessionId: persistent.GetSessionId()},
+		&sessioninternalapi.ValidateSessionRequest{SessionId: persistentID},
 	)
 	require.NoError(t, err)
 	require.Equal(t, userID.String(), validated.GetUserId())
 	require.True(t, validated.GetPersistent())
+}
 
-	_, err = client.RevokeUserSessions(ctx, &sessioninternalapi.RevokeUserSessionsRequest{
+func verifySessionRevocation(ctx context.Context, t *testing.T, client sessioninternalapi.SessionServiceClient, userID uuid.UUID, regularID, persistentID string) {
+	t.Helper()
+	_, err := client.RevokeUserSessions(ctx, &sessioninternalapi.RevokeUserSessionsRequest{
 		UserId: userID.String(),
 	})
 	require.NoError(t, err)
 	_, err = client.ValidateSession(ctx, &sessioninternalapi.ValidateSessionRequest{
-		SessionId: regular.GetSessionId(),
+		SessionId: regularID,
 	})
 	require.Equal(t, codes.Unauthenticated, status.Code(err))
 	_, err = client.ValidateSession(ctx, &sessioninternalapi.ValidateSessionRequest{
-		SessionId: persistent.GetSessionId(),
+		SessionId: persistentID,
 	})
 	require.Equal(t, codes.Unauthenticated, status.Code(err))
 }

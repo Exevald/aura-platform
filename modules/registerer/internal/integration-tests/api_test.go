@@ -13,6 +13,13 @@ import (
 )
 
 func TestServiceStartsMigratesAndRejectsInvalidRegistration(t *testing.T) {
+	baseURL, db := startRegistererForTest(t)
+	verifyRegistererMigration(t, db)
+	verifyRegistererHealthAndValidation(t, baseURL)
+}
+
+func startRegistererForTest(t *testing.T) (string, *sql.DB) {
+	t.Helper()
 	env := integrationtest.New()
 	t.Cleanup(func() { require.NoError(t, env.Close()) })
 	require.NoError(t, env.StartNetwork(t.Context()))
@@ -43,11 +50,20 @@ func TestServiceStartsMigratesAndRejectsInvalidRegistration(t *testing.T) {
 	db, err := sql.Open("mysql", dsn)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	baseURL, err := service.PortEndpoint(t.Context(), "8082/tcp", "http")
+	require.NoError(t, err)
+	return baseURL, db
+}
+
+func verifyRegistererMigration(t *testing.T, db *sql.DB) {
+	t.Helper()
 	var table string
 	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_name = ?`, "registerer_test", "registration_transaction").Scan(&table))
 	require.Equal(t, "registration_transaction", table)
-	baseURL, err := service.PortEndpoint(t.Context(), "8082/tcp", "http")
-	require.NoError(t, err)
+}
+
+func verifyRegistererHealthAndValidation(t *testing.T, baseURL string) {
+	t.Helper()
 	client := &http.Client{Timeout: 5 * time.Second}
 	response, err := client.Get(baseURL + "/healthz")
 	require.NoError(t, err)

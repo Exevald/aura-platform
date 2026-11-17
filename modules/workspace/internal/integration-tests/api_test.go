@@ -23,18 +23,28 @@ func TestWorkspaceLifecycle(t *testing.T) {
 	defer connection.Close()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	created, err := internalapi.NewWorkspaceServiceClient(connection).EnsurePersonalWorkspace(ctx, &internalapi.EnsurePersonalWorkspaceRequest{
+	verifyPersonalWorkspace(ctx, t, internalapi.NewWorkspaceServiceClient(connection), userID, workspaceID)
+	client, err := publicapi.NewClientWithResponses("http://" + testEnv.conf.HTTP.Address)
+	require.NoError(t, err)
+
+	verifyTeamInvitation(ctx, t, client, userID)
+}
+
+func verifyPersonalWorkspace(ctx context.Context, t *testing.T, client internalapi.WorkspaceServiceClient, userID, workspaceID uuid.UUID) {
+	t.Helper()
+	created, err := client.EnsurePersonalWorkspace(ctx, &internalapi.EnsurePersonalWorkspaceRequest{
 		WorkspaceId: workspaceID.String(), UserId: userID.String(), Name: "Личное пространство",
 	}, grpc.WaitForReady(true))
 	require.NoError(t, err)
 	require.Equal(t, workspaceID.String(), created.WorkspaceId)
-	check, err := internalapi.NewWorkspaceServiceClient(connection).CheckMembership(ctx, &internalapi.CheckMembershipRequest{WorkspaceId: workspaceID.String(), UserId: userID.String()})
+	check, err := client.CheckMembership(ctx, &internalapi.CheckMembershipRequest{WorkspaceId: workspaceID.String(), UserId: userID.String()})
 	require.NoError(t, err)
 	require.True(t, check.Allowed)
 	require.Equal(t, "owner", check.Role)
+}
 
-	client, err := publicapi.NewClientWithResponses("http://" + testEnv.conf.HTTP.Address)
-	require.NoError(t, err)
+func verifyTeamInvitation(ctx context.Context, t *testing.T, client *publicapi.ClientWithResponses, userID uuid.UUID) {
+	t.Helper()
 	response, err := client.ListWorkspacesWithResponse(ctx, &publicapi.ListWorkspacesParams{XAuthUser: openapi_types.UUID(userID)})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, response.StatusCode())

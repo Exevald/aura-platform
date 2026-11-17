@@ -20,40 +20,14 @@ import (
 func TestMixedChainSessionAuthorizationAndReplace(t *testing.T) {
 	var calls atomic.Int32
 	session := grpcServer(t, func(_ context.Context, r *pb.InterceptRequest) (*pb.InterceptResponse, error) {
-		assert.Equal(t, "", getHeader(r.Context.Request.Headers, "X-Auth-User"),
-			"spoofed session header survived")
-
-		return ok(&pb.ContinueResponse{HeaderMutation: set("X-Auth-User", "session-user"), ResponseHeaderMutation: set("X-Result", "first")}), nil
+		return sessionChainResponse(t, r), nil
 	})
 	authz := restServer(t, func(input map[string]any) any {
-		assert.Equal(t, config.RequestHeaders, input["eventType"],
-			"wrong event")
-
-		context := input["context"].(map[string]any)
-		headers := context["request"].(map[string]any)["headers"].([]any)
-		found := false
-		for _, raw := range headers {
-			h := raw.(map[string]any)
-			if strings.EqualFold(h[jsonHeaderKey].(string), "X-Auth-User") && h["value"] == "session-user" {
-				found = true
-			}
-		}
-		assert.True(t, found,
-			"authz did not see session")
-		assert.Equal(t, "42", context["pathParameters"].(map[string]any)["id"],
-			"missing path parameter")
-
-		return map[string]any{"responseType": "continueResponse", "headerMutation": map[string]any{jsonSet: []any{map[string]any{jsonHeaderKey: "x-auth-user", jsonHeaderValues: []string{"authorized-user"}}}}, "responseHeaderMutation": map[string]any{jsonSet: []any{map[string]any{jsonHeaderKey: "X-Result", jsonHeaderValues: []string{"second"}}}}}
+		return authorizationChainResponse(t, input)
 	})
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		{
-			vs := r.Header.Values("X-Auth-User")
-			assert.EqualValues(t, 1, len(vs),
-				"SetOrReplaceHeaders failed")
-			assert.Equal(t, "authorized-user", vs[0],
-				"SetOrReplaceHeaders failed")
-		}
+		verifyAuthorizedBackendRequest(t, r)
 
 		w.Header().Set("X-Result", "upstream")
 		_, _ = w.Write([]byte("ok"))
@@ -89,6 +63,36 @@ routes:
 		"chain failed: %d %v %s", status, h, body)
 	require.EqualValues(t, 1, calls.Load(),
 		"chain failed: %d %v %s", status, h, body)
+}
+
+func sessionChainResponse(t *testing.T, request *pb.InterceptRequest) *pb.InterceptResponse {
+	t.Helper()
+	assert.Equal(t, "", getHeader(request.Context.Request.Headers, "X-Auth-User"), "spoofed session header survived")
+	return ok(&pb.ContinueResponse{HeaderMutation: set("X-Auth-User", "session-user"), ResponseHeaderMutation: set("X-Result", "first")})
+}
+
+func authorizationChainResponse(t *testing.T, input map[string]any) any {
+	t.Helper()
+	assert.Equal(t, config.RequestHeaders, input["eventType"], "wrong event")
+	requestContext := input["context"].(map[string]any)
+	headers := requestContext["request"].(map[string]any)["headers"].([]any)
+	found := false
+	for _, raw := range headers {
+		header := raw.(map[string]any)
+		if strings.EqualFold(header[jsonHeaderKey].(string), "X-Auth-User") && header["value"] == "session-user" {
+			found = true
+		}
+	}
+	assert.True(t, found, "authz did not see session")
+	assert.Equal(t, "42", requestContext["pathParameters"].(map[string]any)["id"], "missing path parameter")
+	return map[string]any{"responseType": "continueResponse", "headerMutation": map[string]any{jsonSet: []any{map[string]any{jsonHeaderKey: "x-auth-user", jsonHeaderValues: []string{"authorized-user"}}}}, "responseHeaderMutation": map[string]any{jsonSet: []any{map[string]any{jsonHeaderKey: "X-Result", jsonHeaderValues: []string{"second"}}}}}
+}
+
+func verifyAuthorizedBackendRequest(t *testing.T, request *http.Request) {
+	t.Helper()
+	values := request.Header.Values("X-Auth-User")
+	assert.EqualValues(t, 1, len(values), "SetOrReplaceHeaders failed")
+	assert.Equal(t, "authorized-user", values[0], "SetOrReplaceHeaders failed")
 }
 
 func TestAuthorizationStopsChainAndBackend(t *testing.T) {

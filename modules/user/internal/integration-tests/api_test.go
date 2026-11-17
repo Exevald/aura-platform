@@ -24,6 +24,14 @@ func TestUserLifecycle(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
+	userID := createTestUser(ctx, t, client, firstName)
+
+	verifyUserUpdate(ctx, t, client, userID, firstName)
+	verifyUserDeletion(ctx, t, client, userID)
+}
+
+func createTestUser(ctx context.Context, t *testing.T, client userinternalapi.UserServiceClient, firstName string) string {
+	t.Helper()
 	created, err := client.CreateUser(ctx, &userinternalapi.CreateUserRequest{
 		Fields: &userinternalapi.UserFields{
 			DisplayName: firstName,
@@ -37,9 +45,13 @@ func TestUserLifecycle(t *testing.T) {
 	user, err := client.GetUser(ctx, &userinternalapi.GetUserRequest{UserId: created.GetUserId()})
 	require.NoError(t, err)
 	require.Equal(t, firstName, user.GetFields().GetDisplayName())
+	return created.GetUserId()
+}
 
-	_, err = client.UpdateUser(ctx, &userinternalapi.UpdateUserRequest{
-		UserId: created.GetUserId(),
+func verifyUserUpdate(ctx context.Context, t *testing.T, client userinternalapi.UserServiceClient, userID, firstName string) {
+	t.Helper()
+	_, err := client.UpdateUser(ctx, &userinternalapi.UpdateUserRequest{
+		UserId: userID,
 		Fields: &userinternalapi.UserFields{
 			DisplayName: "Nickname",
 			FirstName:   firstName,
@@ -55,13 +67,16 @@ func TestUserLifecycle(t *testing.T) {
 		"test.user",
 		&displayName,
 		"SELECT display_name FROM user WHERE id = UUID_TO_BIN(?)",
-		created.GetUserId(),
+		userID,
 	)
 	require.NoError(t, err)
 	require.Equal(t, "Nickname", displayName)
+}
 
-	_, err = client.DeleteUser(ctx, &userinternalapi.DeleteUserRequest{UserId: created.GetUserId()})
+func verifyUserDeletion(ctx context.Context, t *testing.T, client userinternalapi.UserServiceClient, userID string) {
+	t.Helper()
+	_, err := client.DeleteUser(ctx, &userinternalapi.DeleteUserRequest{UserId: userID})
 	require.NoError(t, err)
-	_, err = client.GetUser(ctx, &userinternalapi.GetUserRequest{UserId: created.GetUserId()})
+	_, err = client.GetUser(ctx, &userinternalapi.GetUserRequest{UserId: userID})
 	require.Error(t, err)
 }

@@ -12,11 +12,13 @@ run = "go mod tidy"
 run = [
     "mise run //modules/user:build",
     "mise run //modules/access:build",
+    "mise run //modules/usergroup:build",
     "mise run //modules/session:build",
     "mise run //modules/auth:build",
 	"mise run //modules/registerer:build",
     "docker build --tag distributed-programming-user:e2e ../modules/user",
     "docker build --tag distributed-programming-access:e2e ../modules/access",
+    "docker build --tag distributed-programming-usergroup:e2e ../modules/usergroup",
     "docker build --tag distributed-programming-session:e2e ../modules/session",
 	"docker build --tag distributed-programming-auth:e2e ../modules/auth",
 ]

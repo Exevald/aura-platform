@@ -85,6 +85,12 @@ func TestIdleTimeoutWaitsForUploadCompletion(t *testing.T) {
 }
 
 func TestInterceptorTimeoutExplicitDisableAndCancellation(t *testing.T) {
+	verifyDisabledInterceptorTimeouts(t)
+	verifyInterceptorCancellation(t)
+}
+
+func verifyDisabledInterceptorTimeouts(t *testing.T) {
+	t.Helper()
 	for _, transport := range []string{grpcTransport, restTransport} {
 		t.Run(transport, func(t *testing.T) {
 			address := processorServer(t, transport, func(context.Context, *pb.InterceptRequest) (*pb.InterceptResponse, error) {
@@ -97,6 +103,10 @@ func TestInterceptorTimeoutExplicitDisableAndCancellation(t *testing.T) {
 			require.Equal(t, "ok", body)
 		})
 	}
+}
+
+func verifyInterceptorCancellation(t *testing.T) {
+	t.Helper()
 	started := make(chan struct{})
 	canceled := make(chan struct{})
 	address := grpcServer(t, func(ctx context.Context, _ *pb.InterceptRequest) (*pb.InterceptResponse, error) {

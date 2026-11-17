@@ -76,50 +76,32 @@ func TestRegistrationFansOutRollbackAfterPrepareFailure(t *testing.T) {
 }
 
 func TestRegistrationAbortsWhenParticipantRejectsPrepare(t *testing.T) {
-	ctx := env.Bind(t)
-	before := rowCounts(t)
 	userProxy.failPrepareBefore.Store(true)
-	response, err := deps.client.RegisterWithResponse(ctx, registration("e2e-prepare-failure", "e2e-prepare-failure@example.com"))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusServiceUnavailable, response.StatusCode())
-	requireCountsEventually(t, before, 0)
-	requireNoEventTypes(t, "UserCreated", "UserRegistered")
-
-	retry, err := deps.client.RegisterWithResponse(ctx, registration("e2e-prepare-failure", "e2e-prepare-failure@example.com"))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, retry.StatusCode())
-	requireCountsEventually(t, before, 1)
-	requireEventTypesOnce(t, "UserCreated", "UserRegistered", "SessionCreated")
+	verifyAbortedRegistrationCanRetry(t, "e2e-prepare-failure")
 }
 
 func TestRegistrationAbortsAfterLostPrepareResponse(t *testing.T) {
-	ctx := env.Bind(t)
-	before := rowCounts(t)
 	userProxy.failPrepareAfter.Store(true)
-	response, err := deps.client.RegisterWithResponse(ctx, registration("e2e-lost-prepare", "e2e-lost-prepare@example.com"))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusServiceUnavailable, response.StatusCode())
-	requireCountsEventually(t, before, 0)
-	requireNoEventTypes(t, "UserCreated", "UserRegistered")
-
-	retry, err := deps.client.RegisterWithResponse(ctx, registration("e2e-lost-prepare", "e2e-lost-prepare@example.com"))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, retry.StatusCode())
-	requireCountsEventually(t, before, 1)
-	requireEventTypesOnce(t, "UserCreated", "UserRegistered", "SessionCreated")
+	verifyAbortedRegistrationCanRetry(t, "e2e-lost-prepare")
 }
 
 func TestRegistrationAbortsAfterLostAuthPrepareResponse(t *testing.T) {
+	authProxy.failPrepareAfter.Store(true)
+	verifyAbortedRegistrationCanRetry(t, "e2e-lost-auth-prepare")
+}
+
+func verifyAbortedRegistrationCanRetry(t *testing.T, login string) {
+	t.Helper()
 	ctx := env.Bind(t)
 	before := rowCounts(t)
-	authProxy.failPrepareAfter.Store(true)
-	response, err := deps.client.RegisterWithResponse(ctx, registration("e2e-lost-auth-prepare", "e2e-lost-auth-prepare@example.com"))
+	input := registration(login, login+"@example.com")
+	response, err := deps.client.RegisterWithResponse(ctx, input)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable, response.StatusCode())
 	requireCountsEventually(t, before, 0)
 	requireNoEventTypes(t, "UserCreated", "UserRegistered")
 
-	retry, err := deps.client.RegisterWithResponse(ctx, registration("e2e-lost-auth-prepare", "e2e-lost-auth-prepare@example.com"))
+	retry, err := deps.client.RegisterWithResponse(ctx, input)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, retry.StatusCode())
 	requireCountsEventually(t, before, 1)
@@ -134,12 +116,7 @@ func TestRecoveryRedeliversCommitDecision(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, response.StatusCode())
 	requireCountsEventually(t, before, 1)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		var state string
-		err := deps.dbs[registererModule].QueryRowContext(ctx, "SELECT state FROM registration_transaction ORDER BY created_at DESC LIMIT 1").Scan(&state)
-		require.NoError(collect, err)
-		require.Equal(collect, "committed", state)
-	}, 5*time.Second, 50*time.Millisecond)
+	requireCommittedDecisionEventually(t)
 	requireEventTypesOnce(t, "UserCreated", "UserRegistered", "SessionCreated")
 }
 
@@ -167,13 +144,19 @@ func TestRecoverySurvivesCoordinatorRestart(t *testing.T) {
 	testcontainers.RequireContainerExec(ctx, t, registererServiceContainer, []string{"sh", "-c", "kill -9 $(cat /tmp/registerer.pid)"})
 	userProxy.failCommitRemaining.Store(0)
 	requireCountsEventually(t, before, 1)
+	requireCommittedDecisionEventually(t)
+	requireEventTypesOnce(t, "UserCreated", "UserRegistered", "SessionCreated")
+}
+
+func requireCommittedDecisionEventually(t *testing.T) {
+	t.Helper()
+	ctx := env.Bind(t)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var state string
 		err := deps.dbs[registererModule].QueryRowContext(ctx, "SELECT state FROM registration_transaction ORDER BY created_at DESC LIMIT 1").Scan(&state)
 		require.NoError(collect, err)
 		require.Equal(collect, "committed", state)
 	}, 5*time.Second, 50*time.Millisecond)
-	requireEventTypesOnce(t, "UserCreated", "UserRegistered", "SessionCreated")
 }
 
 func registration(login, email string) publicapi.RegisterJSONRequestBody {
