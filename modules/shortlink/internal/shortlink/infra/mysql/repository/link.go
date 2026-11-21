@@ -49,10 +49,23 @@ func (r *linkRepository) Store(link domain.Link) error {
 
 	_, err := r.db.ExecContext(r.ctx, "shortlink.store", sqlShortlinkStoreQuery, link.ID.String(), link.OwnerID.String(), link.Code, link.TargetURL, link.CreatedAt)
 	var mysqlErr *sqldriver.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 && strings.Contains(mysqlErr.Message, "code") {
+	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 && (strings.Contains(mysqlErr.Message, "code") || strings.Contains(mysqlErr.Message, "PRIMARY")) {
 		return domain.ErrCodeConflict
 	}
 	return err
+}
+
+func (r *linkRepository) FindByID(id uuid.UUID) (domain.Link, error) {
+	var row linkRow
+	err := r.db.GetContext(r.ctx, "shortlink.find-id", &row,
+		`SELECT id, owner_user_id, code, target_url, created_at FROM short_link WHERE id = ?`, id.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Link{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Link{}, err
+	}
+	return row.domain(), nil
 }
 
 func (r *linkRepository) ListByOwner(ownerID uuid.UUID) ([]domain.Link, error) {

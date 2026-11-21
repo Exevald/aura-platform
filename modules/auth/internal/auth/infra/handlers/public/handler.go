@@ -32,18 +32,18 @@ func NewHandler(svc app.AuthService, sso *app.SSOService, cookie config.Cookie) 
 
 func (h *handler) IssueSsoTicket(ctx context.Context, req publicapi.IssueSsoTicketRequestObject) (publicapi.IssueSsoTicketResponseObject, error) {
 	if requestHost(ctx) != "aura-platform.auth" {
-		return publicapi.IssueSsoTicket400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: "invalid origin"}}, nil
+		return publicapi.IssueSsoTicket400JSONResponse{Message: "invalid origin"}, nil
 	}
 	code, err := h.sso.Issue(ctx, sessionID(ctx), req.Body.TargetHost)
 	switch {
 	case err == nil:
 		return publicapi.IssueSsoTicket200JSONResponse{Code: code}, nil
 	case errors.Is(err, app.ErrInvalidSSOTarget):
-		return publicapi.IssueSsoTicket400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: "invalid target"}}, nil
+		return publicapi.IssueSsoTicket400JSONResponse{Message: "invalid target"}, nil
 	case errors.Is(err, app.ErrSessionNotFound):
-		return publicapi.IssueSsoTicket401JSONResponse{UnauthorizedJSONResponse: publicapi.UnauthorizedJSONResponse{Message: "authentication required"}}, nil
+		return publicapi.IssueSsoTicket401JSONResponse{Message: "authentication required"}, nil
 	default:
-		return publicapi.IssueSsoTicket503JSONResponse{UnavailableJSONResponse: publicapi.UnavailableJSONResponse{Message: unavailableMessage}}, nil
+		return publicapi.IssueSsoTicket503JSONResponse{Message: unavailableMessage}, nil
 	}
 }
 
@@ -52,11 +52,14 @@ func (h *handler) ConsumeSsoTicket(ctx context.Context, req publicapi.ConsumeSso
 	switch {
 	case err == nil:
 		cookie := h.sessionCookie(result)
-		return publicapi.ConsumeSsoTicket204Response{Headers: publicapi.ConsumeSsoTicket204ResponseHeaders{SetCookie: cookie.String()}}, nil
+		return publicapi.ConsumeSsoTicket204Response{
+			Headers: publicapi.ConsumeSsoTicket204ResponseHeaders{
+				SetCookie: cookie.String(),
+			}}, nil
 	case errors.Is(err, app.ErrInvalidSSOTicket), errors.Is(err, app.ErrInvalidSSOTarget):
-		return publicapi.ConsumeSsoTicket400JSONResponse{BadRequestJSONResponse: publicapi.BadRequestJSONResponse{Message: "invalid ticket"}}, nil
+		return publicapi.ConsumeSsoTicket400JSONResponse{Message: "invalid ticket"}, nil
 	default:
-		return publicapi.ConsumeSsoTicket503JSONResponse{UnavailableJSONResponse: publicapi.UnavailableJSONResponse{Message: unavailableMessage}}, nil
+		return publicapi.ConsumeSsoTicket503JSONResponse{Message: unavailableMessage}, nil
 	}
 }
 

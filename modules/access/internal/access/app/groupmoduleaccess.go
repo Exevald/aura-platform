@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	EditorModuleID    = uuid.MustParse("b8547c76-51fd-4f7c-9c68-8f30c84f61cb")
-	ShortlinkModuleID = uuid.MustParse("d5b2367d-af92-4fa8-bc65-93b41f37a397")
-	CalendarModuleID  = uuid.MustParse("8997f5f2-b127-4b9f-b5d1-80d0726afbe1")
-	PlannerModuleID   = uuid.MustParse("bd46e533-1971-4697-8324-2bd29a158627")
+	EditorModuleID      = uuid.MustParse("b8547c76-51fd-4f7c-9c68-8f30c84f61cb")
+	ShortlinkModuleID   = uuid.MustParse("d5b2367d-af92-4fa8-bc65-93b41f37a397")
+	PublicationModuleID = uuid.MustParse("84c7d60e-6f3e-4f09-91c2-82774c12fc88")
+	CalendarModuleID    = uuid.MustParse("8997f5f2-b127-4b9f-b5d1-80d0726afbe1")
+	PlannerModuleID     = uuid.MustParse("bd46e533-1971-4697-8324-2bd29a158627")
 )
 
 type Module struct {
@@ -27,6 +28,7 @@ func Modules() []Module {
 	return []Module{
 		{ID: EditorModuleID, Code: "editor", Name: "Редактор документов"},
 		{ID: ShortlinkModuleID, Code: "shortlink", Name: "Короткие ссылки"},
+		{ID: PublicationModuleID, Code: "publication", Name: "Публикации"},
 		{ID: CalendarModuleID, Code: "calendar", Name: "Календарь"},
 		{ID: PlannerModuleID, Code: "planner", Name: "Планировщик"},
 	}
@@ -217,7 +219,7 @@ func (s *moduleAccessService) replaceGroupModules(
 }
 
 func knownModule(id uuid.UUID) bool {
-	return id == EditorModuleID || id == ShortlinkModuleID || id == CalendarModuleID || id == PlannerModuleID
+	return id == EditorModuleID || id == ShortlinkModuleID || id == PublicationModuleID || id == CalendarModuleID || id == PlannerModuleID
 }
 
 func newRejected(spec ModuleShareSpec, reason string) *accessevents.GroupModuleAccessRejected {

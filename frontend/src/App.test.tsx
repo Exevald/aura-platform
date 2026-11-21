@@ -42,6 +42,24 @@ test('renders login screen when there is no active session', async () => {
     expect(screen.getByLabelText('Пароль')).toHaveAttribute('minlength', '8')
 })
 
+test('redirects only once when a product session expires', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', {
+        hostname: 'aura-platform.documents',
+        protocol: 'http:',
+        port: '',
+        href: 'http://aura-platform.documents/documents',
+        pathname: '/documents',
+        assign,
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({message: 'authentication required'}, 401)))
+
+    render(<MemoryRouter initialEntries={['/documents']}><App/></MemoryRouter>)
+
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1))
+    expect(assign.mock.calls[0][0]).toContain('http://aura-platform.auth/login?return=')
+})
+
 test('restores an existing session instead of showing login', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
         const url = String(input)

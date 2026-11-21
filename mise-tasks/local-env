@@ -18,6 +18,7 @@ LOCAL_HOSTS = [
     "aura-platform.calendar",
     "aura-platform.planner",
     "aura-platform.shortlinks",
+    "aura-platform.publications",
     "aura-platform.notifications",
 ]
 HOSTS_MARKER = "# aura-platform local"
@@ -171,7 +172,10 @@ def main():
                 print("http://" + host + suffix + "/")
             for path in modules:
                 prefix = path.parent.name.upper()
-                print(f"{path.parent.name}: gRPC={env[prefix + '_GRPC_PORT']}, HTTP={env[prefix + '_HTTP_PORT']}, consumer health={env[prefix + '_MESSAGE_HANDLER_PORT']}")
+                ports = f"HTTP={env[prefix + '_HTTP_PORT']}, consumer health={env[prefix + '_MESSAGE_HANDLER_PORT']}"
+                if path.parent.name != "publication":
+                    ports = f"gRPC={env[prefix + '_GRPC_PORT']}, " + ports
+                print(f"{path.parent.name}: {ports}")
     elif args.action == "down":
         compose("down", "--remove-orphans")
     elif args.action == "logs":

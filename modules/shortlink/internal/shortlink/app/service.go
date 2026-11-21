@@ -32,6 +32,14 @@ func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, target string) 
 	return
 }
 
+func (s *Service) Ensure(ctx context.Context, ownerID uuid.UUID, key, target string) (link domain.Link, err error) {
+	err = s.unit.Execute(ctx, func(provider RepositoryProvider) error {
+		link, err = domain.NewLinkService(provider.Link(ctx)).Ensure(ownerID, key, target, time.Now().UTC())
+		return err
+	})
+	return
+}
+
 func (s *Service) List(ctx context.Context, ownerID uuid.UUID) (links []domain.Link, err error) {
 	err = s.unit.Execute(ctx, func(provider RepositoryProvider) error {
 		links, err = domain.NewLinkService(provider.Link(ctx)).List(ownerID)

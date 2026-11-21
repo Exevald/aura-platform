@@ -1,6 +1,7 @@
 import {type FormEvent, useState} from 'react'
 import {Check, Copy, Link2, Plus, Trash2} from 'lucide-react'
 import type {ShortLink} from '../model/api'
+import {copyText} from '../model/clipboard'
 
 export function ShortlinkView({links, error, onCreate, onDelete}: {
     links: ShortLink[];
@@ -19,20 +20,7 @@ export function ShortlinkView({links, error, onCreate, onDelete}: {
 
     async function copy(id: string, path: string) {
         try {
-            const value = new URL(path, location.origin).toString()
-            if (navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(value)
-            } else {
-                const field = document.createElement('textarea')
-                field.value = value
-                field.style.position = 'fixed'
-                field.style.opacity = '0'
-                document.body.append(field)
-                field.select()
-                const copied = document.execCommand('copy')
-                field.remove()
-                if (!copied) throw new Error('copy failed')
-            }
+            await copyText(new URL(path, location.origin).toString())
             setCopiedID(id)
         } catch {
             setCopiedID('')

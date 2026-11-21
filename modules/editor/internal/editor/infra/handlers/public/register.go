@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strings"
 	"uuid"
@@ -119,11 +120,16 @@ func registerAttachmentRoutes(router chi.Router, svc app.EditorService) {
 		if !attachmentError(w, e) {
 			return
 		}
-		w.Header().Set("Content-Type", meta.ContentType)
-		w.Header().Set("Content-Disposition", mimeDisposition(meta.FileName))
+		if imageType := inlineImageType(meta.ContentType); imageType != "" {
+			w.Header().Set("Content-Type", imageType)
+			w.Header().Set("Content-Disposition", "inline")
+		} else {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Disposition", mimeDisposition(meta.FileName))
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
-		// #nosec G705 -- attachments are downloaded with nosniff, not rendered inline.
+		// #nosec G705 -- only allowlisted raster images are rendered inline; other files are downloaded.
 		_, _ = w.Write(data)
 	})
 	router.Delete(base+"/{fileID}", func(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +147,19 @@ func registerAttachmentRoutes(router chi.Router, svc app.EditorService) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+func inlineImageType(contentType string) string {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return ""
+	}
+	switch mediaType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return mediaType
+	default:
+		return ""
+	}
 }
 
 func attachmentContext(w http.ResponseWriter, r *http.Request, workspaceRequired bool) (actorID, documentID, workspaceID uuid.UUID, ok bool) {

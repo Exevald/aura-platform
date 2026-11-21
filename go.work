@@ -14,6 +14,7 @@ use (
 	./modules/mailer
 	./modules/notification
 	./modules/planner
+	./modules/publication
 	./modules/realtime
 	./modules/registerer
 	./modules/session

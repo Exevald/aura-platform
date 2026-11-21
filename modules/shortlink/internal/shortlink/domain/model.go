@@ -23,6 +23,7 @@ type Link struct {
 type LinkRepository interface {
 	NextID() (uuid.UUID, error)
 	Store(Link) error
+	FindByID(uuid.UUID) (Link, error)
 	ListByOwner(uuid.UUID) ([]Link, error)
 	FindByCode(string) (Link, error)
 	Delete(uuid.UUID, uuid.UUID) error

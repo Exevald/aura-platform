@@ -16,6 +16,8 @@ routes:
       - id: session
   - pattern: '^/s/[A-Za-z0-9]{10}$'
     target: '$(SHORTLINK_UPSTREAM:-shortlink-service:8082)'
+  - pattern: '^/p/[0-9a-fA-F-]{36}(/assets/[0-9a-fA-F-]{36})?$'
+    target: '$(PUBLICATION_UPSTREAM:-publication-service:8082)'
   - pattern: '^/api/access/.*$'
     target: '$(ACCESS_UPSTREAM:-access-service:8082)'
     interceptors:
@@ -53,6 +55,14 @@ routes:
       - id: access
         parameters:
           moduleID: '$(EDITOR_MODULE_ID:-b8547c76-51fd-4f7c-9c68-8f30c84f61cb)'
+  - pattern: '^/api/publication/.*$'
+    target: '$(PUBLICATION_UPSTREAM:-publication-service:8082)'
+    interceptors:
+      - id: session
+      - id: workspace
+      - id: access
+        parameters:
+          moduleID: '$(PUBLICATION_MODULE_ID:-84c7d60e-6f3e-4f09-91c2-82774c12fc88)'
   - pattern: '^/api/usergroups/.*$'
     target: '$(USERGROUP_UPSTREAM:-usergroup-service:8082)'
     interceptors:

@@ -38,16 +38,21 @@ type Document struct {
 }
 
 type Permission struct {
-	DocumentID, UserID   uuid.UUID
-	Role                 Role
-	CreatedAt, UpdatedAt time.Time
+	DocumentID uuid.UUID
+	UserID     uuid.UUID
+	Role       Role
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type Attachment struct {
-	DocumentID, FileID, WorkspaceID uuid.UUID
-	FileName, ContentType           string
-	SizeBytes                       int64
-	CreatedAt                       time.Time
+	DocumentID  uuid.UUID
+	FileID      uuid.UUID
+	WorkspaceID uuid.UUID
+	FileName    string
+	ContentType string
+	SizeBytes   int64
+	CreatedAt   time.Time
 }
 
 type AttachmentRepository interface {

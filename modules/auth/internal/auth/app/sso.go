@@ -19,6 +19,7 @@ var productHosts = map[string]bool{
 	"aura-platform.calendar":      true,
 	"aura-platform.planner":       true,
 	"aura-platform.shortlinks":    true,
+	"aura-platform.publications":  true,
 	"aura-platform.notifications": true,
 }
 

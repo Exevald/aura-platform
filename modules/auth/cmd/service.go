@@ -1,6 +1,7 @@
 package main
 
 import (
+	"auth/internal/auth/infra/mysql/storage"
 	"context"
 	"errors"
 	"log/slog"
@@ -69,7 +70,7 @@ func service(ctx context.Context, logger *slog.Logger, conf config.Env) (err err
 		clients.sessions,
 	)
 	registration := registrationinfra.New(db.xa, dispatcherFactory, hasher)
-	sso := app.NewSSOService(clients.sessions, authmysql.NewSSOTicketStore(db.connector.TransactionalClient()))
+	sso := app.NewSSOService(clients.sessions, storage.NewSSOTicketStore(db.connector.TransactionalClient()))
 	httpServer, err := newHTTPServer(logger, conf, svc, sso)
 	if err != nil {
 		return err

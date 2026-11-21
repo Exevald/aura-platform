@@ -5,7 +5,15 @@ option go_package = "/.;editorinternalapi";
 
 service EditorService {
   rpc Echo(EchoRequest) returns (EchoResponse);
+  rpc GetPublicationSnapshot(GetPublicationSnapshotRequest) returns (PublicationSnapshot);
+  rpc DownloadPublicationAttachment(DownloadPublicationAttachmentRequest) returns (stream PublicationAttachmentChunk);
 }
+
+message GetPublicationSnapshotRequest { string document_id = 1; string workspace_id = 2; string actor_user_id = 3; int64 expected_version = 4; }
+message PublicationAttachment { string file_id = 1; string file_name = 2; string content_type = 3; int64 size_bytes = 4; }
+message PublicationSnapshot { string document_id = 1; string title = 2; string content = 3; int64 version = 4; repeated PublicationAttachment attachments = 5; }
+message DownloadPublicationAttachmentRequest { string document_id = 1; string workspace_id = 2; string actor_user_id = 3; string file_id = 4; }
+message PublicationAttachmentChunk { bytes data = 1; }
 
 message EchoRequest {
   string Body = 1;

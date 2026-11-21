@@ -1,0 +1,9 @@
+version: v2
+modules:
+  - path: api/workflow
+  - path: temporal/proto
+lint:
+  use:
+    - BASIC
+  except:
+    - PACKAGE_DIRECTORY_MATCH

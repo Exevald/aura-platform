@@ -3,31 +3,42 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"time"
 
 	"github.com/distributed-programming-2026/gateway/internal/gateway/config"
-	"golang.org/x/net/http2"
 )
 
 type Proxy struct {
 	http1   *http.Transport
-	h2c     *http2.Transport
-	h2tls   *http2.Transport
+	h2c     *http.Transport
+	h2tls   *http.Transport
 	timeout time.Duration
 	idle    time.Duration
 }
 
 func New(c config.Gateway) *Proxy {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.DisableCompression = true
-	transport.ResponseHeaderTimeout = 0
-	return &Proxy{http1: transport, h2c: &http2.Transport{AllowHTTP: true, DisableCompression: true, DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, addr)
-	}}, h2tls: &http2.Transport{DisableCompression: true}, timeout: config.Value(c.ProxyTimeouts.Timeout, time.Minute), idle: config.Value(c.ProxyTimeouts.IdleTimeout, 10*time.Minute)}
+	newTransport := func(protocols *http.Protocols) *http.Transport {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DisableCompression = true
+		transport.ResponseHeaderTimeout = 0
+		transport.Protocols = protocols
+		return transport
+	}
+	http1Protocols := new(http.Protocols)
+	http1Protocols.SetHTTP1(true)
+	h2cProtocols := new(http.Protocols)
+	h2cProtocols.SetUnencryptedHTTP2(true)
+	h2tlsProtocols := new(http.Protocols)
+	h2tlsProtocols.SetHTTP2(true)
+	return &Proxy{
+		http1:   newTransport(http1Protocols),
+		h2c:     newTransport(h2cProtocols),
+		h2tls:   newTransport(h2tlsProtocols),
+		timeout: config.Value(c.ProxyTimeouts.Timeout, time.Minute),
+		idle:    config.Value(c.ProxyTimeouts.IdleTimeout, 10*time.Minute),
+	}
 }
 
 func (p *Proxy) Close() {

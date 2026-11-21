@@ -4,13 +4,10 @@ package shortlinkInternalAPI;
 option go_package = "/.;shortlinkinternalapi";
 
 service ShortlinkService {
-  rpc Echo(EchoRequest) returns (EchoResponse);
+  rpc EnsureLink(EnsureLinkRequest) returns (EnsureLinkResponse);
+  rpc DeleteOwnedLink(DeleteOwnedLinkRequest) returns (DeleteOwnedLinkResponse);
 }
-
-message EchoRequest {
-  string Body = 1;
-}
-
-message EchoResponse {
-  string OperationID = 1;
-}
+message EnsureLinkRequest {string owner_user_id = 1; string idempotency_key = 2; string target_url = 3;}
+message EnsureLinkResponse {string link_id = 1; string short_path = 2;}
+message DeleteOwnedLinkRequest {string owner_user_id = 1; string link_id = 2; string idempotency_key = 3;}
+message DeleteOwnedLinkResponse {}

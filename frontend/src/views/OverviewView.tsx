@@ -1,7 +1,7 @@
 import {ArrowUpRight, FileText, Link2, ShieldCheck, Users} from 'lucide-react'
 import {useOutletContext} from 'react-router-dom'
 import type {ShellContext} from './ShellView'
-import {navigationURL} from '../model/hosts'
+import {ProductLink} from '../components/ProductLink'
 
 const modules = [
     {
@@ -54,24 +54,24 @@ export function OverviewView() {
 
         <div className="section-heading">
             <div><span className="eyebrow">Модули Aura</span><h2>Продолжить работу</h2></div>
-            <a className="text-link" href={navigationURL('/groups')}>Управление доступами <ArrowUpRight size={16}/></a>
+            <ProductLink className="text-link" to="/groups">Управление доступами <ArrowUpRight size={16}/></ProductLink>
         </div>
         <div className="module-grid">
             {modules.map(({to, eyebrow, title, detail, action, icon: Icon, tone}) =>
-                <a className={`module-card ${tone}`} href={navigationURL(to)} key={to}>
+                <ProductLink className={`module-card ${tone}`} to={to} key={to}>
                     <div className="module-icon"><Icon size={24}/></div>
                     <span className="eyebrow">{eyebrow}</span>
                     <h3>{title}</h3>
                     <p>{detail}</p>
                     <strong>{action}<ArrowUpRight size={17}/></strong>
-                </a>)}
+                </ProductLink>)}
         </div>
 
         <section className="access-callout">
             <div className="callout-icon"><ShieldCheck size={24}/></div>
             <div><h3>Доступ складывается из всех групп</h3><p>Если модуль отозван в одной группе, он останется доступен
                 пользователю через любую другую группу, где всё ещё включён.</p></div>
-            <a className="secondary button-link" href={navigationURL('/groups')}>Проверить группы</a>
+            <ProductLink className="secondary button-link" to="/groups">Проверить группы</ProductLink>
         </section>
     </div>
 }

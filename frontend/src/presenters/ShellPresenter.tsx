@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import {api, ApiError, type Profile, type Workspace} from '../model/api'
 import {sessionCoordinator} from '../model/session'
@@ -12,6 +12,14 @@ export function ShellPresenter() {
     const [failed, setFailed] = useState(false)
     const [workspaces, setWorkspaces] = useState<Workspace[]>([])
     const [workspaceID, setWorkspaceID] = useState('')
+    const redirecting = useRef(false)
+
+    const redirectToLogin = useCallback(() => {
+        if (redirecting.current) return
+        redirecting.current = true
+        if (isAuraHost() && location.hostname !== 'aura-platform.auth') location.assign(loginURL(location.href))
+        else navigate('/login', {replace: true})
+    }, [navigate])
 
     const loadSession = useCallback(async () => {
         try {
@@ -29,13 +37,10 @@ export function ShellPresenter() {
             setProfile(currentProfile)
             setFailed(false)
         } catch (error) {
-            if (error instanceof ApiError && error.status === 401) {
-                if (isAuraHost() && location.hostname !== 'aura-platform.auth') location.assign(loginURL(location.href))
-                else navigate('/login')
-            }
+            if (error instanceof ApiError && error.status === 401) redirectToLogin()
             else setFailed(true)
         }
-    }, [navigate])
+    }, [redirectToLogin])
 
     useEffect(() => {
         void Promise.resolve().then(loadSession)
@@ -45,7 +50,7 @@ export function ShellPresenter() {
         const unsubscribe = sessionCoordinator.subscribe((event) => {
             if (event === 'logged-out') {
                 window.localStorage.removeItem('aura-workspace-id')
-                navigate('/login', {replace: true})
+                redirectToLogin()
             } else {
                 setProfile(null)
                 void loadSession()
@@ -62,13 +67,12 @@ export function ShellPresenter() {
             window.removeEventListener('focus', revalidate)
             document.removeEventListener('visibilitychange', revalidateVisible)
         }
-    }, [loadSession, navigate])
+    }, [loadSession, redirectToLogin])
 
     async function logout() {
         try {
             await api.logout()
             sessionCoordinator.publish('logged-out')
-            navigate('/login')
         } catch {
             setFailed(true)
         }

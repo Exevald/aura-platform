@@ -42,6 +42,15 @@ func (r *memoryLinks) FindByCode(code string) (Link, error) {
 	return Link{}, ErrNotFound
 }
 
+func (r *memoryLinks) FindByID(id uuid.UUID) (Link, error) {
+	for _, value := range r.values {
+		if value.ID == id {
+			return value, nil
+		}
+	}
+	return Link{}, ErrNotFound
+}
+
 func (r *memoryLinks) Delete(owner, id uuid.UUID) error {
 	for index, value := range r.values {
 		if value.OwnerID == owner && value.ID == id {
@@ -76,4 +85,17 @@ func TestRejectsUnsafeTargets(t *testing.T) {
 		_, err := svc.Create(uuid.New(), target, time.Time{})
 		require.ErrorIs(t, err, ErrInvalidTarget)
 	}
+}
+
+func TestEnsureIsIdempotent(t *testing.T) {
+	repo := &memoryLinks{}
+	svc := NewLinkService(repo)
+	owner := uuid.New()
+	first, err := svc.Ensure(owner, "publication-1", "http://aura-platform.home/p/example", time.Now())
+	require.NoError(t, err)
+	second, err := svc.Ensure(owner, "publication-1", first.TargetURL, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, first, second)
+	require.Len(t, repo.values, 1)
+	require.NoError(t, svc.Delete(owner, first.ID))
 }

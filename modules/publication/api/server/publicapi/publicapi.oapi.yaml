@@ -1,0 +1,102 @@
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: Publication service public API
+  x-api-identifier: publicationpublicapi
+paths:
+  /api/publication/v1/releases:
+    post:
+      operationId: createRelease
+      parameters:
+        - $ref: "#/components/parameters/authUser"
+        - $ref: "#/components/parameters/workspace"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/createReleaseRequest"}
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/release"}
+        "400": {description: Invalid request}
+        "401": {description: Authentication required}
+        "409": {description: Idempotency conflict}
+        "503": {description: Service unavailable}
+    get:
+      operationId: listReleases
+      parameters:
+        - $ref: "#/components/parameters/authUser"
+        - $ref: "#/components/parameters/workspace"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/release"}}
+        "401": {description: Authentication required}
+        "503": {description: Service unavailable}
+  /api/publication/v1/releases/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      - $ref: "#/components/parameters/authUser"
+      - $ref: "#/components/parameters/workspace"
+    get:
+      operationId: getRelease
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/release"}
+        "401": {description: Authentication required}
+        "404": {description: Release not found}
+        "503": {description: Service unavailable}
+    delete:
+      operationId: closeRelease
+      responses:
+        "204": {description: Closed}
+        "401": {description: Authentication required}
+        "404": {description: Release not found}
+        "503": {description: Service unavailable}
+components:
+  parameters:
+    authUser:
+      name: X-Auth-User
+      in: header
+      required: true
+      schema: {type: string, format: uuid}
+    workspace:
+      name: X-Workspace-ID
+      in: header
+      required: true
+      schema: {type: string, format: uuid}
+  schemas:
+    createReleaseRequest:
+      type: object
+      required: [documentID, expectedVersion]
+      properties:
+        documentID: {type: string, format: uuid}
+        expectedVersion: {type: integer, format: int64, minimum: 1}
+    release:
+      type: object
+      required: [id, documentID, workspaceID, status, title, shortPath, failure, sourceVersion, deliveryStatus]
+      properties:
+        id: {type: string}
+        documentID: {type: string}
+        workspaceID: {type: string}
+        status: {type: string}
+        title: {type: string}
+        shortPath: {type: string}
+        failure: {type: string}
+        sourceVersion: {type: integer, format: int64}
+        deliveryStatus: {type: string}

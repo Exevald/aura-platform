@@ -24,7 +24,7 @@ mise exec -- go run ./cmd --config config service
 | `GATEWAY_HTTP_ADDRESS` | адрес proxy listener; default определяется `port` |
 | `GATEWAY_HEALTH_ADDRESS` | адрес health listener; default определяется `healthzPort` |
 
-CLI использует `urfave/cli/v3`, как модули core: `service` — команда по умолчанию, `check-config` проверяет конфигурацию. Флаг `--check-config` также поддерживается.
+CLI использует `urfave/cli/v3`, как модули core: `editorAdapter` — команда по умолчанию, `check-config` проверяет конфигурацию. Флаг `--check-config` также поддерживается.
 
 Endpoint на health listener: `/healthz`, `/readyz`. SIGINT/SIGTERM выключают readiness и дают текущим запросам до 30 секунд на завершение. При buffered request body чтение ограничено 60 секундами; streaming passthrough этого ограничения не имеет.
 

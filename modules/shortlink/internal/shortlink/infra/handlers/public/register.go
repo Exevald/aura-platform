@@ -28,15 +28,15 @@ func Register(svc *app.Service, logger *slog.Logger) (runtimehttp.RegisterFunc, 
 		router.Group(func(router chi.Router) {
 			router.Use(func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					route, params, err := validatorRouter.FindRoute(r)
-					if err == nil {
-						err = openapi3filter.ValidateRequest(r.Context(), &openapi3filter.RequestValidationInput{
+					route, params, err2 := validatorRouter.FindRoute(r)
+					if err2 == nil {
+						err2 = openapi3filter.ValidateRequest(r.Context(), &openapi3filter.RequestValidationInput{
 							Request:    r,
 							PathParams: params,
 							Route:      route,
 						})
 					}
-					if err != nil {
+					if err2 != nil {
 						http.Error(w, "invalid request", http.StatusBadRequest)
 						return
 					}

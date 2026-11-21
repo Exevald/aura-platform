@@ -29,3 +29,7 @@ run = "go test -v -count=1 -timeout=8m ./..."
 
 [tasks.lint]
 run = "golangci-lint run"
+
+[tasks.publication-e2e]
+description = "Run the publication lifecycle through a running local gateway"
+run = "AURA_E2E_BASE_URL=${AURA_E2E_BASE_URL:-http://127.0.0.1} go test -v -count=1 ./publication"

@@ -15,6 +15,7 @@ services:
       bff-service: { condition: service_started }
       editor-service: { condition: service_started }
       shortlink-service: { condition: service_started }
+      publication-service: { condition: service_started }
       usergroup-service: { condition: service_started }
       session-service: { condition: service_started }
       access-service: { condition: service_started }

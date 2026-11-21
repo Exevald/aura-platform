@@ -1,0 +1,57 @@
+syntax = "proto3";
+package publication.v1;
+option go_package = "publication/api/workflow;workflowapi";
+
+import "temporal/v1/temporal.proto";
+
+service PublicationFlow {
+  option (temporal.v1.service) = { task_queue: "publication-v1" };
+
+  rpc Publish(PublishRequest) returns (PublishResponse) {
+    option (temporal.v1.workflow) = { id: 'publication/${! id }' };
+  }
+
+  rpc Unpublish(UnpublishRequest) returns (UnpublishResponse) {
+    option (temporal.v1.workflow) = { id: 'unpublication/${! id }' };
+  }
+
+  rpc ExportSnapshot(ReleaseID) returns (Snapshot) {
+    option (temporal.v1.activity) = { start_to_close_timeout: { seconds: 120 } retry_policy: { max_attempts: 3 } };
+  }
+
+  rpc CreateShortLink(ReleaseID) returns (ShortLink) {
+    option (temporal.v1.activity) = { start_to_close_timeout: { seconds: 20 } retry_policy: { max_attempts: 5 } };
+  }
+
+  rpc Activate(ReleaseID) returns (ReleaseID) {
+    option (temporal.v1.activity) = { start_to_close_timeout: { seconds: 20 } retry_policy: { max_attempts: 5 } };
+  }
+
+  rpc NotifyMembers(ReleaseID) returns (ReleaseID) {
+    option (temporal.v1.activity) = { start_to_close_timeout: { seconds: 120 } retry_policy: { max_attempts: 5 } };
+  }
+
+  rpc MarkNotificationFailed(ReleaseID) returns (ReleaseID) {
+    option (temporal.v1.activity) = { start_to_close_timeout: { seconds: 20 } retry_policy: { max_attempts: 5 } };
+  }
+
+  rpc Close(ReleaseID) returns (ReleaseID) {
+    option (temporal.v1.activity) = { start_to_close_timeout: { seconds: 20 } retry_policy: { max_attempts: 5 } };
+  }
+
+  rpc DeleteShortLink(ReleaseID) returns (ReleaseID) {
+    option (temporal.v1.activity) = { start_to_close_timeout: { seconds: 20 } retry_policy: { max_attempts: 5 } };
+  }
+
+  rpc DeleteSnapshot(ReleaseID) returns (ReleaseID) {
+    option (temporal.v1.activity) = { start_to_close_timeout: { seconds: 120 } retry_policy: { max_attempts: 5 } };
+  }
+}
+
+message ReleaseID { string id = 1; }
+message PublishRequest { string id = 1; }
+message PublishResponse { string id = 1; }
+message UnpublishRequest { string id = 1; }
+message UnpublishResponse { string id = 1; }
+message Snapshot { string id = 1; int64 source_version = 2; }
+message ShortLink { string id = 1; string path = 2; }

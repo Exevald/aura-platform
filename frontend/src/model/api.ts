@@ -21,6 +21,8 @@ export type Document = {
     updatedAt: string
 }
 
+export type Attachment = { FileID: string; FileName: string; ContentType: string; SizeBytes: number }
+
 export type Permission = {
     userID: string
     email: string
@@ -38,9 +40,10 @@ export type UserGroup = {
     createdAt: string;
     updatedAt: string
 }
-export type ProductModule = { id: string; code: 'editor' | 'shortlink' | 'calendar' | 'planner'; name: string }
+export type ProductModule = { id: string; code: 'editor' | 'shortlink' | 'publication' | 'calendar' | 'planner'; name: string }
 export type GroupModuleAccess = { groupID: string; moduleIDs: string[] }
 export type ShortLink = { id: string; code: string; targetURL: string; shortPath: string; createdAt: string }
+export type Publication = { id: string; documentID: string; workspaceID: string; status: string; title: string; shortPath: string; failure: string; sourceVersion: number; deliveryStatus: string }
 export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
 export type Workspace = {
     id: string;
@@ -81,24 +84,25 @@ export class ApiError extends Error {
     }
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+async function request<T>(url: string, init?: RequestInit, responseType: 'json' | 'blob' = 'json'): Promise<T> {
     const storage = window.localStorage
     const workspaceID = typeof storage?.getItem === 'function' ? storage.getItem('aura-workspace-id') : null
     const response = await fetch(url, {
         credentials: 'include',
         ...init,
-        headers: {'Content-Type': 'application/json', ...(workspaceID ? {'X-Workspace-ID': workspaceID} : {}), ...init?.headers},
+        headers: {...(init?.body instanceof FormData ? {} : {'Content-Type': 'application/json'}), ...(workspaceID ? {'X-Workspace-ID': workspaceID} : {}), ...init?.headers},
     })
     if (!response.ok) {
         const body = await response.json().catch(() => ({message: 'Ошибка запроса'})) as {
             message?: string;
             fields?: Record<string, string>
         }
-        if (response.status === 401) sessionCoordinator.publish('logged-out')
+        if (response.status === 401 && !url.startsWith('/api/public/')) sessionCoordinator.publish('logged-out')
         const fieldMessage = body.fields ? Object.entries(body.fields).map(([field, reason]) => `${field}: ${reason}`).join('; ') : ''
         throw new ApiError(response.status, fieldMessage || body.message || 'Ошибка запроса', body.fields)
     }
-    return response.status === 204 ? undefined as T : response.json() as Promise<T>
+    if (response.status === 204) return undefined as T
+    return responseType === 'blob' ? response.blob() as Promise<T> : response.json() as Promise<T>
 }
 
 export const api = {
@@ -129,6 +133,13 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({title: document.title, content: document.content, version: document.version})
     }),
+    uploadAttachment: (id: string, file: File) => {
+        const body = new FormData()
+        body.append('file', file)
+        return request<Attachment>(`/api/editor/v1/documents/${id}/attachments`, {method: 'POST', body})
+    },
+    downloadAttachment: (documentID: string, fileID: string) => request<Blob>(
+        `/api/editor/v1/documents/${documentID}/attachments/${fileID}/content`, undefined, 'blob'),
     deleteDocument: (id: string) => request(`/api/editor/v1/documents/${id}`, {method: 'DELETE'}),
     permissions: (id: string) => request<Permission[]>(`/api/editor/v1/documents/${id}/permissions`),
     grant: (id: string, email: string, role: 'viewer' | 'editor') => request(`/api/editor/v1/documents/${id}/permissions`, {
@@ -163,6 +174,13 @@ export const api = {
         body: JSON.stringify({targetURL})
     }),
     deleteShortLink: (id: string) => request(`/api/shortlink/v1/links/${id}`, {method: 'DELETE'}),
+    publications: () => request<Publication[]>('/api/publication/v1/releases'),
+    publishDocument: (document: Document, key: string) => request<Publication>('/api/publication/v1/releases', {
+        method: 'POST',
+        headers: {'Idempotency-Key': key},
+        body: JSON.stringify({documentID: document.id, expectedVersion: document.version})
+    }),
+    unpublish: (id: string) => request<void>(`/api/publication/v1/releases/${id}`, {method: 'DELETE'}),
     workspaces: () => request<Workspace[]>('/api/workspaces/v1/workspaces'),
     createWorkspace: (name: string) => request<Workspace>('/api/workspaces/v1/workspaces', {
         method: 'POST',

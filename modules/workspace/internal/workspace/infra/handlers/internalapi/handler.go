@@ -56,3 +56,26 @@ func (h *handler) CheckMembership(ctx context.Context, r *api.CheckMembershipReq
 	}
 	return &api.CheckMembershipResponse{Allowed: true, Role: string(m.Role), Kind: string(value.Kind)}, nil
 }
+
+func (h *handler) ListMembers(ctx context.Context, r *api.ListMembersRequest) (*api.ListMembersResponse, error) {
+	w, err := uuid.Parse(r.WorkspaceId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid workspace id")
+	}
+	u, err := uuid.Parse(r.ActorUserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid actor user id")
+	}
+	_, members, _, err := h.svc.Get(ctx, u, w)
+	if err == domain.ErrNotFound {
+		return nil, status.Error(codes.NotFound, "workspace not found")
+	}
+	if err != nil {
+		return nil, status.Error(codes.Internal, "list members failed")
+	}
+	out := &api.ListMembersResponse{UserIds: make([]string, 0, len(members))}
+	for _, member := range members {
+		out.UserIds = append(out.UserIds, member.UserID.String())
+	}
+	return out, nil
+}

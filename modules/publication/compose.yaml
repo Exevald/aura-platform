@@ -1,0 +1,69 @@
+services:
+  publication-service:
+    image: distributed-programming-publication:local
+    build:
+      context: ./modules/publication
+      dockerfile: Dockerfile
+    environment:
+      PUBLICATION_MYSQL_ADDRESS: mysql:3306
+      PUBLICATION_AMQP_URL: amqp://local:local@rabbitmq:5672/
+      PUBLICATION_TEMPORAL_ADDRESS: temporal:7233
+      PUBLICATION_DEPENDENCIES_FILESTORAGE_ADDRESS: filestorage-service:8081
+    ports:
+      - "${PUBLICATION_HTTP_PORT:-9082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      temporal-namespace:
+        condition: service_completed_successfully
+      filestorage-service:
+        condition: service_started
+
+  publication-message-handler:
+    image: distributed-programming-publication:local
+    command: [message-handler]
+    environment:
+      PUBLICATION_MYSQL_ADDRESS: mysql:3306
+      PUBLICATION_AMQP_URL: amqp://local:local@rabbitmq:5672/
+      PUBLICATION_TEMPORAL_ADDRESS: temporal:7233
+    ports:
+      - "${PUBLICATION_MESSAGE_HANDLER_PORT:-9083}:8082"
+    depends_on:
+      publication-service:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      temporal-namespace:
+        condition: service_completed_successfully
+
+  publication-worker:
+    image: distributed-programming-publication:local
+    command: [worker]
+    environment:
+      PUBLICATION_MYSQL_ADDRESS: mysql:3306
+      PUBLICATION_TEMPORAL_ADDRESS: temporal:7233
+      PUBLICATION_DEPENDENCIES_EDITOR_ADDRESS: editor-service:8081
+      PUBLICATION_DEPENDENCIES_SHORTLINK_ADDRESS: shortlink-service:8081
+      PUBLICATION_DEPENDENCIES_WORKSPACE_ADDRESS: workspace-service:8081
+      PUBLICATION_DEPENDENCIES_NOTIFICATION_ADDRESS: notification-service:8081
+      PUBLICATION_DEPENDENCIES_FILESTORAGE_ADDRESS: filestorage-service:8081
+      PUBLICATION_DEPENDENCIES_PUBLIC_BASE_URL: http://aura-platform.home
+    depends_on:
+      publication-service:
+        condition: service_started
+      temporal-namespace:
+        condition: service_completed_successfully
+      filestorage-service:
+        condition: service_started
+      editor-service:
+        condition: service_started
+      shortlink-service:
+        condition: service_started
+      workspace-service:
+        condition: service_started
+      notification-service:
+        condition: service_started

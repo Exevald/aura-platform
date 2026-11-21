@@ -1,4 +1,4 @@
-revision: "1"
+revision: "2"
 apps:
   - id: b8547c76-51fd-4f7c-9c68-8f30c84f61cb
     code: editor
@@ -11,6 +11,12 @@ apps:
     name: Короткие ссылки
     frontendRoute: /shortlinks
     backendTarget: shortlink-service:8082
+    defaultEnabled: true
+  - id: 84c7d60e-6f3e-4f09-91c2-82774c12fc88
+    code: publication
+    name: Публикации
+    frontendRoute: /publications
+    backendTarget: publication-service:8082
     defaultEnabled: true
   - id: 8997f5f2-b127-4b9f-b5d1-80d0726afbe1
     code: calendar

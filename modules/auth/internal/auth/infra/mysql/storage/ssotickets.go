@@ -1,4 +1,4 @@
-package mysql
+package storage
 
 import (
 	"context"
@@ -21,12 +21,13 @@ func NewSSOTicketStore(client clientmysql.TransactionalClient) *SSOTicketStore {
 }
 
 func (s *SSOTicketStore) Save(ctx context.Context, hash []byte, userID uuid.UUID, target string, expiresAt time.Time) error {
-	if _, err := s.client.ExecContext(ctx, "expire-sso-tickets", "DELETE FROM sso_ticket WHERE expires_at <= UTC_TIMESTAMP(6)"); err != nil {
+	const removeQuery = `DELETE FROM sso_ticket WHERE expires_at <= UTC_TIMESTAMP(6)`
+	const insertQuery = `INSERT INTO sso_ticket (code_hash, user_id, target_host, expires_at) VALUES (?, ?, ?, ?)`
+
+	if _, err := s.client.ExecContext(ctx, "expire-sso-tickets", removeQuery); err != nil {
 		return err
 	}
-	_, err := s.client.ExecContext(ctx, "save-sso-ticket", `
-		INSERT INTO sso_ticket (code_hash, user_id, target_host, expires_at)
-		VALUES (?, ?, ?, ?)`, hash, userID.String(), target, expiresAt)
+	_, err := s.client.ExecContext(ctx, "save-sso-ticket", insertQuery, hash, userID.String(), target, expiresAt)
 	return err
 }
 

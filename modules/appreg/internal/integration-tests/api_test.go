@@ -21,11 +21,11 @@ func TestRegistryAPIs(t *testing.T) {
 	res, e := client.ListAppsWithResponse(ctx)
 	require.NoError(t, e)
 	require.Equal(t, http.StatusOK, res.StatusCode())
-	require.Len(t, *res.JSON200, 4)
+	require.Len(t, *res.JSON200, 5)
 	conn, e := grpc.NewClient(testEnv.conf.GRPC.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, e)
 	defer conn.Close()
 	list, e := internalapi.NewAppregServiceClient(conn).ListApps(ctx, &internalapi.ListAppsRequest{DefaultEnabledOnly: true})
 	require.NoError(t, e)
-	require.Len(t, list.Apps, 4)
+	require.Len(t, list.Apps, 5)
 }

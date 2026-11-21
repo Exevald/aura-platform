@@ -2,6 +2,7 @@ package domain
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"net/url"
 	"time"
@@ -36,6 +37,48 @@ func (s *LinkService) Create(ownerID uuid.UUID, target string, now time.Time) (L
 		return link, nil
 	}
 	return Link{}, ErrCodeConflict
+}
+
+func (s *LinkService) Ensure(ownerID uuid.UUID, key, target string, now time.Time) (Link, error) {
+	if key == "" || ownerID == uuid.Nil() || !validTarget(target) {
+		return Link{}, ErrInvalidTarget
+	}
+	id := LinkIDForKey(ownerID, key)
+	if existing, err := s.repo.FindByID(id); err == nil {
+		if existing.OwnerID != ownerID || existing.TargetURL != target {
+			return Link{}, ErrInvalidTarget
+		}
+		return existing, nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return Link{}, err
+	}
+	for range 5 {
+		code, err := randomCode(10)
+		if err != nil {
+			return Link{}, err
+		}
+		link := Link{ID: id, OwnerID: ownerID, Code: code, TargetURL: target, CreatedAt: now.UTC()}
+		err = s.repo.Store(link)
+		if err == nil {
+			return link, nil
+		}
+		if !errors.Is(err, ErrCodeConflict) {
+			return Link{}, err
+		}
+		if existing, e := s.repo.FindByID(id); e == nil {
+			return existing, nil
+		}
+	}
+	return Link{}, ErrCodeConflict
+}
+
+func LinkIDForKey(ownerID uuid.UUID, key string) uuid.UUID {
+	hash := sha256.Sum256([]byte(ownerID.String() + ":" + key))
+	var id uuid.UUID
+	copy(id[:], hash[:16])
+	id[6] = id[6]&0x0f | 0x50
+	id[8] = id[8]&0x3f | 0x80
+	return id
 }
 
 func (s *LinkService) List(ownerID uuid.UUID) ([]Link, error) {

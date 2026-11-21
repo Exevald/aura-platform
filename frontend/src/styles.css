@@ -959,6 +959,65 @@ input:focus, select:focus, textarea:focus {
     color: var(--danger);
 }
 
+.editor-insert-menu {
+    position: relative;
+    flex: none;
+}
+
+.editor-insert-menu summary {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    list-style: none;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.editor-insert-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.editor-insert-options {
+    position: absolute;
+    z-index: 3;
+    top: calc(100% + 5px);
+    right: 0;
+    min-width: 160px;
+    padding: 5px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-md);
+}
+
+.editor-insert-options button {
+    width: 100%;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+}
+
+.editor-insert-options button:hover {
+    background: var(--surface-soft);
+}
+
+.editor-upload-status {
+    padding: 0 0 10px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.editor-upload-status.danger {
+    color: var(--danger);
+}
+
 .editor-mobile-tabs {
     display: none;
 }
@@ -982,6 +1041,12 @@ input:focus, select:focus, textarea:focus {
     border-radius: 0;
     background: var(--surface-soft);
     font: 14px/1.72 "JetBrains Mono", monospace;
+}
+
+.editor-split.editor-dragging textarea {
+    outline: 2px dashed var(--brand);
+    outline-offset: -5px;
+    background: var(--brand-soft);
 }
 
 .markdown {

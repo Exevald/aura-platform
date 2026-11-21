@@ -1,7 +1,7 @@
 # aura-platform
 
 Платформа независимых Go-сервисов для совместной работы: документы, календари,
-задачи, короткие ссылки, рабочие пространства, уведомления и аудит.
+задачи, короткие ссылки, публикации, рабочие пространства, уведомления и аудит.
 
 ## Проверка и локальное окружение
 
@@ -25,14 +25,15 @@ mise run local-up
 
 Открывайте `http://aura-platform.home/`. Продукты доступны на
 `http://aura-platform.documents/`, `http://aura-platform.calendar/`,
-`http://aura-platform.planner/`, `http://aura-platform.shortlinks/` и
+`http://aura-platform.planner/`, `http://aura-platform.shortlinks/`,
+`http://aura-platform.publications/` и
 `http://aura-platform.notifications/`. Единый вход работает через
 `http://aura-platform.auth/`: переход между продуктами создаёт отдельную
 сессию для каждого домена по краткоживущему одноразовому коду.
 Внешний HTTP-порт можно изменить через `LOCAL_WEB_PORT`; итоговые адреса
 `local-up` печатает после запуска.
 
-Корневой `compose.yaml` содержит MySQL, RabbitMQ, MinIO и Mailpit. Каждый модуль описывает
+Корневой `compose.yaml` содержит MySQL, RabbitMQ, MinIO, Mailpit и Temporal (UI на `http://localhost:8080`). Каждый модуль описывает
 свои сервисы, очередь, настройки подключения и подготовку базы у себя.
 
 ```sh
@@ -85,11 +86,13 @@ mise run //modules/billing:generate-migration "Create invoices table"
 mise run all
 mise run //modules/billing:integration-tests
 mise run //e2e:integration-tests
+mise run //e2e:publication-e2e
 mise run check-generator
 ```
 
 `all` выполняет генерацию, tidy, Linux-сборку, unit и интеграционные тесты, lint. Интеграционные
 проверки запускаются последовательно; задача останавливается на первой ошибке.
+`publication-e2e` запускается после `local-up` и проверяет публикацию через gateway и реальные сервисы; адрес задаётся `AURA_E2E_BASE_URL` (по умолчанию `http://127.0.0.1`).
 Тесты находятся в `internal/integration-tests` и исключены из обычной задачи `test`.
 Задача mise собирает Linux-бинарник и Docker-образ модуля. Тестовая фикстура поднимает
 MySQL, RabbitMQ и при необходимости MinIO/Mailpit, сервис и consumer в общей изолированной Docker-сети.
@@ -123,5 +126,5 @@ docker build -t distributed-programming-billing:local modules/billing
 
 `build` создаёт Linux-бинарник в `dist/billing`, с отключённым CGO.
 `GOARCH` позволяет выбрать архитектуру вручную; `local-up` выбирает архитектуру
-Docker-сервера. Образ запускает `service` по умолчанию; для consumer передаётся
+Docker-сервера. Образ запускает `editorAdapter` по умолчанию; для consumer передаётся
 команда `message-handler`.

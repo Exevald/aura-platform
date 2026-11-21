@@ -13,7 +13,11 @@ import (
 	"registerer/api/server/publicapi"
 )
 
-type counts struct{ credentials, users, accesses int }
+type counts struct {
+	credentialsCount int
+	usersCount       int
+	accessesCount    int
+}
 
 func TestRegistrationCommitsEveryParticipant(t *testing.T) {
 	ctx := env.Bind(t)
@@ -170,9 +174,9 @@ func rowCounts(t *testing.T) counts {
 	t.Helper()
 	ctx := env.Bind(t)
 	var result counts
-	require.NoError(t, deps.dbs[authModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM credential").Scan(&result.credentials))
-	require.NoError(t, deps.dbs[userModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM user WHERE deleted_at IS NULL").Scan(&result.users))
-	require.NoError(t, deps.dbs[accessModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM module_access").Scan(&result.accesses))
+	require.NoError(t, deps.dbs[authModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM credential").Scan(&result.credentialsCount))
+	require.NoError(t, deps.dbs[userModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM user WHERE deleted_at IS NULL").Scan(&result.usersCount))
+	require.NoError(t, deps.dbs[accessModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM module_access").Scan(&result.accessesCount))
 	return result
 }
 
@@ -180,9 +184,9 @@ func requireCountsEventually(t *testing.T, before counts, increment int) {
 	t.Helper()
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		current := rowCountsCollect(collect, t)
-		require.Equal(collect, before.credentials+increment, current.credentials)
-		require.Equal(collect, before.users+increment, current.users)
-		require.Equal(collect, before.accesses, current.accesses)
+		require.Equal(collect, before.credentialsCount+increment, current.credentialsCount)
+		require.Equal(collect, before.usersCount+increment, current.usersCount)
+		require.Equal(collect, before.accessesCount, current.accessesCount)
 	}, 5*time.Second, 50*time.Millisecond)
 }
 
@@ -191,15 +195,15 @@ func rowCountsCollect(collect *assert.CollectT, t *testing.T) counts {
 	var result counts
 	require.NoError(
 		collect,
-		deps.dbs[authModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM credential").Scan(&result.credentials),
+		deps.dbs[authModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM credential").Scan(&result.credentialsCount),
 	)
 	require.NoError(
 		collect,
-		deps.dbs[userModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM user WHERE deleted_at IS NULL").Scan(&result.users),
+		deps.dbs[userModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM user WHERE deleted_at IS NULL").Scan(&result.usersCount),
 	)
 	require.NoError(
 		collect,
-		deps.dbs[accessModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM module_access").Scan(&result.accesses),
+		deps.dbs[accessModule].QueryRowContext(ctx, "SELECT COUNT(*) FROM module_access").Scan(&result.accessesCount),
 	)
 	return result
 }

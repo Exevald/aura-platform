@@ -4,6 +4,7 @@ import {
     CalendarDays,
     CheckSquare,
     FileText,
+    Globe2,
     LayoutDashboard,
     Link2,
     LogOut,
@@ -14,9 +15,9 @@ import {
     Users,
     X
 } from 'lucide-react'
-import {NavLink, Outlet} from 'react-router-dom'
+import {Outlet, useLocation} from 'react-router-dom'
 import type {Profile, Workspace} from '../model/api'
-import {isAuraHost, navigationURL} from '../model/hosts'
+import {ProductLink} from '../components/ProductLink'
 
 export type ShellContext = { profile: Profile; setProfile: (profile: Profile) => void }
 
@@ -36,6 +37,7 @@ export function ShellView({
                               onSelectWorkspace
                           }: Props) {
     const [menuOpen, setMenuOpen] = useState(false)
+    const {pathname} = useLocation()
     const [theme, setTheme] = useState<'light' | 'dark'>(() => {
         const storage = window.localStorage
         const saved = typeof storage?.getItem === 'function' ? storage.getItem('aura-theme') : null
@@ -53,6 +55,7 @@ export function ShellView({
         {to: '/overview', label: 'Обзор', icon: LayoutDashboard},
         {to: '/documents', label: 'Документы', icon: FileText},
         {to: '/shortlinks', label: 'Shortlink', icon: Link2},
+        {to: '/publications', label: 'Публикации', icon: Globe2},
         {to: '/calendar', label: 'Календарь', icon: CalendarDays},
         {to: '/planner', label: 'Задачи', icon: CheckSquare},
         {to: '/notifications', label: 'Уведомления', icon: Bell},
@@ -62,7 +65,7 @@ export function ShellView({
 
     return <div className="shell">
         <header className="mobile-header">
-            <a className="brand" href={navigationURL('/overview')}><span>A</span><span>Aura</span></a>
+            <ProductLink className="brand" to="/overview"><span>A</span><span>Aura</span></ProductLink>
             <button className="icon-button" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'}
                     onClick={() => setMenuOpen(value => !value)}>
                 {menuOpen ? <X size={20}/> : <Menu size={20}/>}
@@ -70,21 +73,19 @@ export function ShellView({
         </header>
         {menuOpen && <button className="nav-backdrop" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)}/>}
         <aside className={menuOpen ? 'open' : ''}>
-            <a className="brand sidebar-brand" href={navigationURL('/overview')}
-                  onClick={() => setMenuOpen(false)}><span>A</span><span>Aura</span></a>
+            <ProductLink className="brand sidebar-brand" to="/overview"
+                         onClick={() => setMenuOpen(false)}><span>A</span><span>Aura</span></ProductLink>
             {workspaces.length > 0 && <select aria-label="Рабочее пространство" value={workspaceID}
                                               onChange={event => onSelectWorkspace?.(event.target.value)}>
                 {workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>}
             <nav aria-label="Основная навигация">
-                {navItems.map(({to, label, icon: Icon}) => isAuraHost()
-                    ? <a key={to} href={navigationURL(to)} className={location.pathname === to || location.pathname.startsWith(to + '/') ? 'active' : undefined}
-                         onClick={() => setMenuOpen(false)}>
+                {navItems.map(({to, label, icon: Icon}) =>
+                    <ProductLink key={to} to={to}
+                                 className={pathname === to || pathname.startsWith(to + '/') ? 'active' : undefined}
+                                 onClick={() => setMenuOpen(false)}>
                         <Icon size={19}/><span>{label}</span>
-                    </a>
-                    : <NavLink key={to} to={to} onClick={() => setMenuOpen(false)}>
-                        <Icon size={19}/><span>{label}</span>
-                    </NavLink>)}
+                    </ProductLink>)}
             </nav>
             <div className="sidebar-footer">
                 <button className="theme-toggle"
@@ -93,7 +94,8 @@ export function ShellView({
                         <Sun size={18}/>}<span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span>
                 </button>
                 <div className="aside-user">
-                    <a className="avatar" href={navigationURL('/profile')}>{profile.displayName.slice(0, 1).toUpperCase()}</a>
+                    <ProductLink className="avatar"
+                                 to="/profile">{profile.displayName.slice(0, 1).toUpperCase()}</ProductLink>
                     <div><strong>{profile.displayName}</strong><small>{profile.email}</small></div>
                     <button className="logout-button" title="Выйти" aria-label="Выйти" onClick={onLogout}><LogOut
                         size={18}/></button>

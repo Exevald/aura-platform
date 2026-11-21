@@ -6,6 +6,7 @@ import {ProfilePresenter} from './presenters/ProfilePresenter'
 import {ShellPresenter} from './presenters/ShellPresenter'
 import {GroupsPresenter} from './presenters/GroupsPresenter'
 import {ShortlinkPresenter} from './presenters/ShortlinkPresenter'
+import {PublicationPresenter} from './presenters/PublicationPresenter'
 import {OverviewView} from './views/OverviewView'
 import {CalendarPresenter} from './presenters/CalendarPresenter'
 import {PlannerPresenter} from './presenters/PlannerPresenter'
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/profile" element={<ProfilePresenter/>}/>
             <Route path="/groups" element={<GroupsPresenter/>}/>
             <Route path="/shortlinks" element={<ShortlinkPresenter/>}/>
+            <Route path="/publications" element={<PublicationPresenter/>}/>
             <Route path="/calendar" element={<CalendarPresenter/>}/>
             <Route path="/planner" element={<PlannerPresenter/>}/>
             <Route path="/notifications" element={<NotificationsPresenter/>}/>

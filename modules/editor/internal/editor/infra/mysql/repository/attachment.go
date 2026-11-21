@@ -44,7 +44,7 @@ func (r *attachmentRepository) StoreAttachment(v model.Attachment) error {
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, e := r.client.ExecContext(r.ctx, "attachment.store", sqlAttachmentStoreQuery, v.DocumentID, v.FileID, v.WorkspaceID, v.FileName, v.ContentType, v.SizeBytes, v.CreatedAt)
+	_, e := r.client.ExecContext(r.ctx, "attachment.store", sqlAttachmentStoreQuery, v.DocumentID, v.FileID.String(), v.WorkspaceID, v.FileName, v.ContentType, v.SizeBytes, v.CreatedAt)
 	return e
 }
 
@@ -87,7 +87,7 @@ func (r *attachmentRepository) FindAttachment(doc, file uuid.UUID) (model.Attach
 	`
 
 	var v attachmentRow
-	e := r.client.GetContext(r.ctx, "attachment.find", &v, sqlAttachmentFindQuery, doc, file)
+	e := r.client.GetContext(r.ctx, "attachment.find", &v, sqlAttachmentFindQuery, doc, file.String())
 	if stderrors.Is(e, sql.ErrNoRows) {
 		e = model.ErrDocumentNotFound
 	}
@@ -100,7 +100,7 @@ func (r *attachmentRepository) DeleteAttachment(doc, file uuid.UUID) error {
 		WHERE document_id = ? AND file_id = ?
 	`
 
-	res, e := r.client.ExecContext(r.ctx, "attachment.delete", sqlAttachmentDeleteQuery, doc, file)
+	res, e := r.client.ExecContext(r.ctx, "attachment.delete", sqlAttachmentDeleteQuery, doc, file.String())
 	if e == nil {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return model.ErrDocumentNotFound

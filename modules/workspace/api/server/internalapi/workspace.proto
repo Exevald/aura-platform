@@ -5,7 +5,10 @@ option go_package = "/.;workspaceinternalapi";
 service WorkspaceService {
   rpc EnsurePersonalWorkspace(EnsurePersonalWorkspaceRequest) returns (WorkspaceResponse);
   rpc CheckMembership(CheckMembershipRequest) returns (CheckMembershipResponse);
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
 }
+message ListMembersRequest { string workspace_id = 1; string actor_user_id = 2; }
+message ListMembersResponse { repeated string user_ids = 1; }
 message EnsurePersonalWorkspaceRequest { string workspace_id = 1; string user_id = 2; string name = 3; }
 message CheckMembershipRequest { string workspace_id = 1; string user_id = 2; }
 message CheckMembershipResponse { bool allowed = 1; string role = 2; string kind = 3; }
